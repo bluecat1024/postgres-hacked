@@ -31,12 +31,12 @@ Environment setup: (for details, refer to: https://www.postgresql.org/docs/curre
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo install gcc make libreadline8 libreadline-dev zlib1g zlib1g-dev  build-essential bison postgresql-client
+sudo install gcc make libreadline8 libreadline-dev zlib1g zlib1g-dev build-essential bison postgresql-client llvm clang
 ```
-3. Clone the repository and use the master branch (it is the REL_14_STABLE for the postgres original repo).
+3. Clone the repository and use the master branch (it is the REL\_14\_STABLE for the postgres original repo).
 4. Build and install postgres
 ```bash
-./configure
+./configure --with-llvm
 make
 sudo make install
 ```
@@ -56,3 +56,31 @@ initdb -D /usr/local/pgsql/data
 pg_ctl -D /usr/local/pgsql/data -l logfile start
 ```
 7. Play with the psql
+```bash
+# Create a database
+createdb test
+psql test
+```
+
+8. Set up llvm
+```bash
+psql test
+set jit='on';
+set jit_above_cost=5;
+set jit_inline_above_cost=10;
+set jit_optimize_above_cost=10;
+show jit;
+show jit_above cost;
+```
+
+To see the JIT explain:
+```bash
+# Create a sample database
+create table t1 (id int);
+insert into t1 (select (random()*100)::int from generate_series(1, 800000) as g);
+analyze t1;
+explain select sum(id) from t1;
+```
+
+See [this post](https://www.percona.com/blog/2018/11/19/installing-and-configuring-jit-in-postgresql-11/)
+
