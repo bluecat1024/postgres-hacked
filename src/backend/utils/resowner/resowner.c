@@ -555,12 +555,12 @@ ResourceOwnerReleaseInternal(ResourceOwner owner,
 		}
 
 		/* Ditto for JIT contexts */
-		while (ResourceArrayGetAny(&(owner->jitarr), &foundres))
-		{
-			JitContext *context = (JitContext *) PointerGetDatum(foundres);
+		// while (ResourceArrayGetAny(&(owner->jitarr), &foundres))
+		// {
+		// 	JitContext *context = (JitContext *) PointerGetDatum(foundres);
 
-			jit_release_context(context);
-		}
+		// 	jit_release_context(context);
+		// }
 
 		/* Ditto for cryptohash contexts */
 		while (ResourceArrayGetAny(&(owner->cryptohasharr), &foundres))

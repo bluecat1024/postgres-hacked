@@ -67,6 +67,7 @@ pg_jit_available(PG_FUNCTION_ARGS)
 static bool
 provider_init(void)
 {
+	printf("jit.c: provider_init\n");
 	char		path[MAXPGPATH];
 	JitProviderInit init;
 
@@ -136,7 +137,9 @@ jit_reset_after_error(void)
  */
 void
 jit_release_context(JitContext *context)
-{
+{	
+	printf("Jit release context\n");
+	return;
 	if (provider_successfully_loaded)
 		provider.release_context(context);
 

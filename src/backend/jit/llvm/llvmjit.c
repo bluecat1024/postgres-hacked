@@ -170,6 +170,8 @@ llvm_create_context(int jitFlags)
 static void
 llvm_release_context(JitContext *context)
 {
+	printf("Release context\n");
+	return;
 	LLVMJitContext *llvm_context = (LLVMJitContext *) context;
 	ListCell   *lc;
 
@@ -262,10 +264,11 @@ llvm_expand_funcname(struct LLVMJitContext *context, const char *basename)
 	 * Previously we used dots to separate, but turns out some tools, e.g.
 	 * GDB, don't like that and truncate name.
 	 */
+	// Hack
 	return psprintf("%s_%zu_%d",
 					basename,
-					context->module_generation,
-					context->counter++);
+					1,
+					1);
 }
 
 /*
@@ -288,6 +291,7 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 	 */
 	if (!context->compiled)
 	{
+		printf("Compile the module\n");
 		llvm_compile_module(context);
 	}
 
@@ -297,6 +301,7 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 	 */
 
 #if LLVM_VERSION_MAJOR > 11
+	printf("Version 11\n");
 	foreach(lc, context->handles)
 	{
 		LLVMJitHandle *handle = (LLVMJitHandle *) lfirst(lc);
@@ -327,11 +332,12 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 			return (void *) (uintptr_t) addr;
 	}
 #elif defined(HAVE_DECL_LLVMORCGETSYMBOLADDRESSIN) && HAVE_DECL_LLVMORCGETSYMBOLADDRESSIN
+	printf("First elif\n");
 	foreach(lc, context->handles)
 	{
 		LLVMOrcTargetAddress addr;
 		LLVMJitHandle *handle = (LLVMJitHandle *) lfirst(lc);
-
+		printf("In loop once\n");
 		addr = 0;
 		if (LLVMOrcGetSymbolAddressIn(handle->stack, &addr, handle->orc_handle, funcname))
 			elog(ERROR, "failed to look up symbol \"%s\"", funcname);
@@ -339,6 +345,7 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 			return (void *) (uintptr_t) addr;
 	}
 #elif LLVM_VERSION_MAJOR < 5
+	printf("< 5>\n");
 	{
 		LLVMOrcTargetAddress addr;
 
@@ -348,6 +355,7 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 			return (void *) (uintptr_t) addr;
 	}
 #else
+	printf("else\n");
 	{
 		LLVMOrcTargetAddress addr;
 
