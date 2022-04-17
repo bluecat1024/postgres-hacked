@@ -31,7 +31,7 @@ Environment setup: (for details, refer to: https://www.postgresql.org/docs/curre
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo install gcc make libreadline8 libreadline-dev zlib1g zlib1g-dev build-essential bison postgresql-client llvm clang
+sudo install gcc make libreadline8 libreadline-dev zlib1g zlib1g-dev build-essential bison postgresql-client llvm clang flex
 ```
 3. Clone the repository and use the master branch (it is the REL\_14\_STABLE for the postgres original repo).
 4. Build and install postgres
@@ -51,7 +51,7 @@ export PATH
 ```bash
 # Create the data folder
 sudo mkdir /usr/local/pgsql/data
-sudo chown postgres /usr/local/pgsql/data
+sudo chown ubuntu /usr/local/pgsql/data
 initdb -D /usr/local/pgsql/data
 pg_ctl -D /usr/local/pgsql/data -l logfile start
 ```
