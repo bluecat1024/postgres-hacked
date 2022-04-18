@@ -131,18 +131,13 @@ llvm_compile_expr(ExprState *state)
 	Assert(parent);
 
 	/* get or create JIT context */
-	bool needCompile = false;
+	bool needCompile = true;
 	if (parent->state->es_jit) {
 		printf("Get from parent!\n");
 		// context = (LLVMJitContext *) parent->state->es_jit;
 	} else {
-		if (context == NULL) {
-			printf("Context is null\n");
 			context = llvm_create_context(parent->state->es_jit_flags);
-			needCompile = true;
-		}
-		
-		// parent->state->es_jit = &context->base;
+		parent->state->es_jit = &context->base;
 	}
 	funcname = llvm_expand_funcname(context, "evalexpr");
 	printf("Funcname: %s\n", funcname);

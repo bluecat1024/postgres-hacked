@@ -55,6 +55,7 @@
 #include "postgres.h"
 
 #include <limits.h>
+#include <stdio.h>
 
 #include "access/transam.h"
 #include "catalog/namespace.h"
@@ -165,6 +166,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
 				 const char *query_string,
 				 CommandTag commandTag)
 {
+	printf("plancache.c: CreateCachedPlan() begin\n");
 	CachedPlanSource *plansource;
 	MemoryContext source_context;
 	MemoryContext oldcxt;
@@ -222,7 +224,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
 	plansource->num_custom_plans = 0;
 
 	MemoryContextSwitchTo(oldcxt);
-
+	printf("plancache.c: CreateCachedPlan() end\n");
 	return plansource;
 }
 
@@ -249,6 +251,7 @@ CreateOneShotCachedPlan(RawStmt *raw_parse_tree,
 						const char *query_string,
 						CommandTag commandTag)
 {
+	printf("plancache.c: CreateOneShotCachedPlan() begin\n");
 	CachedPlanSource *plansource;
 
 	Assert(query_string != NULL);	/* required as of 8.4 */
@@ -345,6 +348,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 				   int cursor_options,
 				   bool fixed_result)
 {
+	printf("plancache.c: CompleteCachedPlan() begin\n");
 	MemoryContext source_context = plansource->context;
 	MemoryContext oldcxt = CurrentMemoryContext;
 
@@ -433,6 +437,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 
 	plansource->is_complete = true;
 	plansource->is_valid = true;
+	printf("plancache.c: CompleteCachedPlan() end\n");
 }
 
 /*
@@ -453,6 +458,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 void
 SaveCachedPlan(CachedPlanSource *plansource)
 {
+	printf("plancache.c: SaveCachedPlan() begin\n");
 	/* Assert caller is doing things in a sane order */
 	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 	Assert(plansource->is_complete);
@@ -484,6 +490,7 @@ SaveCachedPlan(CachedPlanSource *plansource)
 	dlist_push_tail(&saved_plan_list, &plansource->node);
 
 	plansource->is_saved = true;
+	printf("plancache.c: SaveCachedPlan() end\n");
 }
 
 /*
@@ -497,6 +504,7 @@ SaveCachedPlan(CachedPlanSource *plansource)
 void
 DropCachedPlan(CachedPlanSource *plansource)
 {
+	printf("plancache.c: DropCachedPlan() begin\n");
 	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 
 	/* If it's been saved, remove it from the list */
@@ -555,6 +563,7 @@ static List *
 RevalidateCachedQuery(CachedPlanSource *plansource,
 					  QueryEnvironment *queryEnv)
 {
+	printf("plancache.c: Revalidate() begin\n");
 	bool		snapshot_set;
 	RawStmt    *rawtree;
 	List	   *tlist;			/* transient query-tree list */
@@ -625,6 +634,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 		AcquirePlannerLocks(plansource->query_list, false);
 	}
 
+	printf("plancache.c: Revalidate() re-compile!!!\n");
 	/*
 	 * Discard the no-longer-useful query tree.  (Note: we don't want to do
 	 * this any earlier, else we'd not have been able to release locks
@@ -794,6 +804,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 static bool
 CheckCachedPlan(CachedPlanSource *plansource)
 {
+	printf("plancache.c: CheckCachedPlan() begin\n");
 	CachedPlan *plan = plansource->gplan;
 
 	/* Assert that caller checked the querytree */
@@ -855,7 +866,7 @@ CheckCachedPlan(CachedPlanSource *plansource)
 	 * Plan has been invalidated, so unlink it from the parent and release it.
 	 */
 	ReleaseGenericPlan(plansource);
-
+	printf("plancache.c: CheckCachedPlan() not valid!\n");
 	return false;
 }
 
@@ -1946,6 +1957,7 @@ PlanCacheComputeResultDesc(List *stmt_list)
 static void
 PlanCacheRelCallback(Datum arg, Oid relid)
 {
+	printf("plancache.c: PlanCacheRelCallback() begin\n");
 	dlist_iter	iter;
 
 	dlist_foreach(iter, &saved_plan_list)
@@ -2018,6 +2030,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 			cexpr->is_valid = false;
 		}
 	}
+	printf("plancache.c: PlanCacheRelCallback() end\n");
 }
 
 /*
@@ -2030,6 +2043,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 static void
 PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+	printf("plancache.c: PlanCacheObjectCallback() begin\n");
 	dlist_iter	iter;
 
 	dlist_foreach(iter, &saved_plan_list)
@@ -2128,6 +2142,7 @@ PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 			}
 		}
 	}
+	printf("plancache.c: PlanCacheObjectCallback() end\n");
 }
 
 /*
@@ -2139,7 +2154,9 @@ PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 PlanCacheSysCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+	printf("plancache.c: PlanCacheSysCallback() begin\n");
 	ResetPlanCache();
+	printf("plancache.c: PlanCacheSysCallback() end\n");
 }
 
 /*
@@ -2148,6 +2165,7 @@ PlanCacheSysCallback(Datum arg, int cacheid, uint32 hashvalue)
 void
 ResetPlanCache(void)
 {
+	printf("plancache.c: ResetPlanCache() begin\n");
 	dlist_iter	iter;
 
 	dlist_foreach(iter, &saved_plan_list)
@@ -2204,4 +2222,5 @@ ResetPlanCache(void)
 
 		cexpr->is_valid = false;
 	}
+	printf("plancache.c: ResetPlanCache() end\n");
 }

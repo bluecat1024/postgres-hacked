@@ -17,6 +17,7 @@
 #include "postgres.h"
 
 #include <limits.h>
+#include <stdio.h>
 
 #include "access/xact.h"
 #include "catalog/pg_type.h"
@@ -57,7 +58,8 @@ static Datum build_regtype_array(Oid *param_types, int num_params);
 void
 PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 			 int stmt_location, int stmt_len)
-{
+{	
+	printf("prepare.c: PrepareQuery() begin\n");
 	RawStmt    *rawstmt;
 	CachedPlanSource *plansource;
 	Oid		   *argtypes = NULL;
@@ -170,6 +172,7 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 	StorePreparedStatement(stmt->name,
 						   plansource,
 						   true);
+	printf("prepare.c: PrepareQuery() ends\n");
 }
 
 /*
@@ -186,6 +189,7 @@ ExecuteQuery(ParseState *pstate,
 			 ParamListInfo params,
 			 DestReceiver *dest, QueryCompletion *qc)
 {
+	printf("prepare.c: ExecuteQuery() begin\n");
 	PreparedStatement *entry;
 	CachedPlan *cplan;
 	List	   *plan_list;
@@ -297,6 +301,7 @@ ExecuteQuery(ParseState *pstate,
 		FreeExecutorState(estate);
 
 	/* No need to pfree other memory, MemoryContext will be reset */
+	printf("prepare.c: ExecuteQuery() end\n");
 }
 
 /*
@@ -315,6 +320,7 @@ static ParamListInfo
 EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 			   EState *estate)
 {
+	printf("prepare.c: EvaluateParams() begin\n");
 	Oid		   *param_types = pstmt->plansource->param_types;
 	int			num_params = pstmt->plansource->num_params;
 	int			nparams = list_length(params);
@@ -394,7 +400,7 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 
 		i++;
 	}
-
+	printf("prepare.c: EvaluateParams() end\n");
 	return paramLI;
 }
 
@@ -405,6 +411,7 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 static void
 InitQueryHashTable(void)
 {
+	printf("prepare.c: InitQueryHashTable() begin\n");
 	HASHCTL		hash_ctl;
 
 	hash_ctl.keysize = NAMEDATALEN;
@@ -414,6 +421,7 @@ InitQueryHashTable(void)
 								   32,
 								   &hash_ctl,
 								   HASH_ELEM | HASH_STRINGS);
+	printf("prepare.c: InitQueryHashTable() end\n");
 }
 
 /*
@@ -427,6 +435,7 @@ StorePreparedStatement(const char *stmt_name,
 					   CachedPlanSource *plansource,
 					   bool from_sql)
 {
+	printf("prepare.c: StorePreparedStatement() begin\n");
 	PreparedStatement *entry;
 	TimestampTz cur_ts = GetCurrentStatementStartTimestamp();
 	bool		found;
@@ -455,6 +464,7 @@ StorePreparedStatement(const char *stmt_name,
 
 	/* Now it's safe to move the CachedPlanSource to permanent memory */
 	SaveCachedPlan(plansource);
+	printf("prepare.c: StorePreparedStatement() end\n");
 }
 
 /*
@@ -552,6 +562,7 @@ DeallocateQuery(DeallocateStmt *stmt)
 void
 DropPreparedStatement(const char *stmt_name, bool showError)
 {
+	printf("prepare.c: DropPreparedStatement() begin\n");
 	PreparedStatement *entry;
 
 	/* Find the query's hash table entry; raise error if wanted */
@@ -606,6 +617,7 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 					const char *queryString, ParamListInfo params,
 					QueryEnvironment *queryEnv)
 {
+	printf("prepare.c: ExplainExecuteQuery() begin\n");
 	PreparedStatement *entry;
 	const char *query_string;
 	CachedPlan *cplan;
@@ -690,6 +702,7 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 		FreeExecutorState(estate);
 
 	ReleaseCachedPlan(cplan, CurrentResourceOwner);
+	printf("prepare.c: ExplainExecuteQuery() end\n");
 }
 
 /*

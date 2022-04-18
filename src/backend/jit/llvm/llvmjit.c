@@ -267,8 +267,8 @@ llvm_expand_funcname(struct LLVMJitContext *context, const char *basename)
 	// Hack
 	return psprintf("%s_%zu_%d",
 					basename,
-					1,
-					1);
+					context->module_generation,
+					context->counter++);
 }
 
 /*
