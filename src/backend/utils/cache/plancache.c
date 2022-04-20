@@ -166,7 +166,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
 				 const char *query_string,
 				 CommandTag commandTag)
 {
-	printf("plancache.c: CreateCachedPlan() begin\n");
+	// printf("plancache.c: CreateCachedPlan() begin\n");
 	CachedPlanSource *plansource;
 	MemoryContext source_context;
 	MemoryContext oldcxt;
@@ -224,7 +224,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
 	plansource->num_custom_plans = 0;
 
 	MemoryContextSwitchTo(oldcxt);
-	printf("plancache.c: CreateCachedPlan() end\n");
+	// printf("plancache.c: CreateCachedPlan() end\n");
 	return plansource;
 }
 
@@ -251,7 +251,7 @@ CreateOneShotCachedPlan(RawStmt *raw_parse_tree,
 						const char *query_string,
 						CommandTag commandTag)
 {
-	printf("plancache.c: CreateOneShotCachedPlan() begin\n");
+	// printf("plancache.c: CreateOneShotCachedPlan() begin\n");
 	CachedPlanSource *plansource;
 
 	Assert(query_string != NULL);	/* required as of 8.4 */
@@ -348,7 +348,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 				   int cursor_options,
 				   bool fixed_result)
 {
-	printf("plancache.c: CompleteCachedPlan() begin\n");
+	// printf("plancache.c: CompleteCachedPlan() begin\n");
 	MemoryContext source_context = plansource->context;
 	MemoryContext oldcxt = CurrentMemoryContext;
 
@@ -437,7 +437,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 
 	plansource->is_complete = true;
 	plansource->is_valid = true;
-	printf("plancache.c: CompleteCachedPlan() end\n");
+	// printf("plancache.c: CompleteCachedPlan() end\n");
 }
 
 /*
@@ -458,7 +458,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 void
 SaveCachedPlan(CachedPlanSource *plansource)
 {
-	printf("plancache.c: SaveCachedPlan() begin\n");
+	// printf("plancache.c: SaveCachedPlan() begin\n");
 	/* Assert caller is doing things in a sane order */
 	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 	Assert(plansource->is_complete);
@@ -490,7 +490,7 @@ SaveCachedPlan(CachedPlanSource *plansource)
 	dlist_push_tail(&saved_plan_list, &plansource->node);
 
 	plansource->is_saved = true;
-	printf("plancache.c: SaveCachedPlan() end\n");
+	// printf("plancache.c: SaveCachedPlan() end\n");
 }
 
 /*
@@ -504,7 +504,7 @@ SaveCachedPlan(CachedPlanSource *plansource)
 void
 DropCachedPlan(CachedPlanSource *plansource)
 {
-	printf("plancache.c: DropCachedPlan() begin\n");
+	// printf("plancache.c: DropCachedPlan() begin\n");
 	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 
 	/* If it's been saved, remove it from the list */
@@ -563,7 +563,7 @@ static List *
 RevalidateCachedQuery(CachedPlanSource *plansource,
 					  QueryEnvironment *queryEnv)
 {
-	printf("plancache.c: Revalidate() begin\n");
+	// printf("plancache.c: Revalidate() begin\n");
 	bool		snapshot_set;
 	RawStmt    *rawtree;
 	List	   *tlist;			/* transient query-tree list */
@@ -634,7 +634,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 		AcquirePlannerLocks(plansource->query_list, false);
 	}
 
-	printf("plancache.c: Revalidate() re-compile!!!\n");
+	// printf("plancache.c: Revalidate() re-compile!!!\n");
 	/*
 	 * Discard the no-longer-useful query tree.  (Note: we don't want to do
 	 * this any earlier, else we'd not have been able to release locks
@@ -804,7 +804,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 static bool
 CheckCachedPlan(CachedPlanSource *plansource)
 {
-	printf("plancache.c: CheckCachedPlan() begin\n");
+	// printf("plancache.c: CheckCachedPlan() begin\n");
 	CachedPlan *plan = plansource->gplan;
 
 	/* Assert that caller checked the querytree */
@@ -866,8 +866,22 @@ CheckCachedPlan(CachedPlanSource *plansource)
 	 * Plan has been invalidated, so unlink it from the parent and release it.
 	 */
 	ReleaseGenericPlan(plansource);
-	printf("plancache.c: CheckCachedPlan() not valid!\n");
+	// printf("plancache.c: CheckCachedPlan() not valid!\n");
 	return false;
+}
+
+static void PrintTree(Plan* root) {
+	if (root != NULL) {
+		printf("Type of node: %d\n", nodeTag(root));
+		if (root->lefttree) {
+			printf("Left tree:\n");
+			PrintTree(root->lefttree);
+		}
+		if (root->righttree) {
+			printf("Right tree:\n");
+			PrintTree(root->righttree);
+		}
+	}
 }
 
 /*
@@ -890,6 +904,7 @@ static CachedPlan *
 BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 				ParamListInfo boundParams, QueryEnvironment *queryEnv)
 {
+	printf("plancache.c: BuildCachedPlan\n");
 	CachedPlan *plan;
 	List	   *plist;
 	bool		snapshot_set;
@@ -946,6 +961,14 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	plist = pg_plan_queries(qlist, plansource->query_string,
 							plansource->cursor_options, boundParams);
 
+	ListCell* l;
+	foreach(l, plist) {
+		PlannedStmt* stmt = lfirst_node(PlannedStmt, l);
+		printf("plancache.c: The type of the node is: %d\n", nodeTag(stmt));
+		Plan* planTree = stmt->planTree;
+		PrintTree(planTree);
+
+	}
 	/* Release snapshot if we got one */
 	if (snapshot_set)
 		PopActiveSnapshot();
@@ -1030,6 +1053,8 @@ static bool
 choose_custom_plan(CachedPlanSource *plansource, ParamListInfo boundParams)
 {
 	double		avg_custom_cost;
+
+	return false;
 
 	/* One-shot plans will always be considered custom */
 	if (plansource->is_oneshot)
@@ -1957,8 +1982,9 @@ PlanCacheComputeResultDesc(List *stmt_list)
 static void
 PlanCacheRelCallback(Datum arg, Oid relid)
 {
-	printf("plancache.c: PlanCacheRelCallback() begin\n");
+	// printf("plancache.c: PlanCacheRelCallback() begin\n");
 	dlist_iter	iter;
+	return;
 
 	dlist_foreach(iter, &saved_plan_list)
 	{
@@ -1982,6 +2008,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 			list_member_oid(plansource->relationOids, relid))
 		{
 			/* Invalidate the querytree and generic plan */
+			// printf("plancache.c: Invalidate something\n");
 			plansource->is_valid = false;
 			if (plansource->gplan)
 				plansource->gplan->is_valid = false;
@@ -2005,6 +2032,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					list_member_oid(plannedstmt->relationOids, relid))
 				{
 					/* Invalidate the generic plan only */
+					// printf("plancache.c: Invalidate something\n");
 					plansource->gplan->is_valid = false;
 					break;		/* out of stmt_list scan */
 				}
@@ -2027,10 +2055,11 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 		if ((relid == InvalidOid) ? cexpr->relationOids != NIL :
 			list_member_oid(cexpr->relationOids, relid))
 		{
+			// printf("plancache.c: Invalidate something\n");
 			cexpr->is_valid = false;
 		}
 	}
-	printf("plancache.c: PlanCacheRelCallback() end\n");
+	// printf("plancache.c: PlanCacheRelCallback() end\n");
 }
 
 /*
@@ -2043,8 +2072,9 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 static void
 PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
-	printf("plancache.c: PlanCacheObjectCallback() begin\n");
+	// printf("plancache.c: PlanCacheObjectCallback() begin\n");
 	dlist_iter	iter;
+	return;
 
 	dlist_foreach(iter, &saved_plan_list)
 	{
@@ -2075,6 +2105,7 @@ PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 				item->hashValue == hashvalue)
 			{
 				/* Invalidate the querytree and generic plan */
+				// printf("plancache.c: Invalidate something\n");
 				plansource->is_valid = false;
 				if (plansource->gplan)
 					plansource->gplan->is_valid = false;
@@ -2105,6 +2136,7 @@ PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 						item->hashValue == hashvalue)
 					{
 						/* Invalidate the generic plan only */
+						// printf("plancache.c: Invalidate something\n");
 						plansource->gplan->is_valid = false;
 						break;	/* out of invalItems scan */
 					}
@@ -2137,12 +2169,13 @@ PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 			if (hashvalue == 0 ||
 				item->hashValue == hashvalue)
 			{
+				// printf("plancache.c: Invalidate something\n");
 				cexpr->is_valid = false;
 				break;
 			}
 		}
 	}
-	printf("plancache.c: PlanCacheObjectCallback() end\n");
+	// printf("plancache.c: PlanCacheObjectCallback() end\n");
 }
 
 /*
@@ -2154,9 +2187,9 @@ PlanCacheObjectCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 PlanCacheSysCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
-	printf("plancache.c: PlanCacheSysCallback() begin\n");
+	// printf("plancache.c: PlanCacheSysCallback() begin\n");
 	ResetPlanCache();
-	printf("plancache.c: PlanCacheSysCallback() end\n");
+	// printf("plancache.c: PlanCacheSysCallback() end\n");
 }
 
 /*
@@ -2165,7 +2198,7 @@ PlanCacheSysCallback(Datum arg, int cacheid, uint32 hashvalue)
 void
 ResetPlanCache(void)
 {
-	printf("plancache.c: ResetPlanCache() begin\n");
+	// printf("plancache.c: ResetPlanCache() begin\n");
 	dlist_iter	iter;
 
 	dlist_foreach(iter, &saved_plan_list)
@@ -2203,6 +2236,7 @@ ResetPlanCache(void)
 				UtilityContainsQuery(query->utilityStmt))
 			{
 				/* non-utility statement, so invalidate */
+				// printf("plancache.c: Invalidate something\n");
 				plansource->is_valid = false;
 				if (plansource->gplan)
 					plansource->gplan->is_valid = false;
@@ -2222,5 +2256,5 @@ ResetPlanCache(void)
 
 		cexpr->is_valid = false;
 	}
-	printf("plancache.c: ResetPlanCache() end\n");
+	// printf("plancache.c: ResetPlanCache() end\n");
 }
