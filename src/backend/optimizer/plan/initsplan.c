@@ -13,7 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
-
+#include <stdio.h>
 #include "catalog/pg_class.h"
 #include "catalog/pg_type.h"
 #include "nodes/makefuncs.h"
@@ -104,17 +104,20 @@ static void check_memoizable(RestrictInfo *restrictinfo);
  */
 void
 add_base_rels_to_query(PlannerInfo *root, Node *jtnode)
-{
+{	
+	printf("initsplan.c: add_base_rels_to_query\n");
 	if (jtnode == NULL)
 		return;
 	if (IsA(jtnode, RangeTblRef))
 	{
+		printf("initsplan.c: add_base_rels_to_query: RangeTblRef\n");
 		int			varno = ((RangeTblRef *) jtnode)->rtindex;
 
 		(void) build_simple_rel(root, varno, NULL);
 	}
 	else if (IsA(jtnode, FromExpr))
 	{
+		printf("initsplan.c: add_base_rels_to_query: FromExpr\n");
 		FromExpr   *f = (FromExpr *) jtnode;
 		ListCell   *l;
 

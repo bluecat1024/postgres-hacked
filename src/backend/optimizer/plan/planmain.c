@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include <stdio.h>
 
 #include "optimizer/appendinfo.h"
 #include "optimizer/clauses.h"
@@ -55,6 +56,7 @@ RelOptInfo *
 query_planner(PlannerInfo *root,
 			  query_pathkeys_callback qp_callback, void *qp_extra)
 {
+	printf("planmain.c: query_planner\n");
 	Query	   *parse = root->parse;
 	List	   *joinlist;
 	RelOptInfo *final_rel;

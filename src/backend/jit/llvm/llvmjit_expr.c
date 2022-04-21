@@ -77,7 +77,7 @@ LLVMJitContext *context = NULL;
 bool
 llvm_compile_expr(ExprState *state)
 {
-	printf("llvm_compile_expr\n");
+	// printf("llvm_compile_expr\n");
 	PlanState  *parent = state->parent;
 	char	   *funcname;
 
@@ -133,16 +133,16 @@ llvm_compile_expr(ExprState *state)
 	/* get or create JIT context */
 	bool needCompile = true;
 	if (parent->state->es_jit) {
-		printf("Get from parent!\n");
+		// printf("Get from parent!\n");
 		// context = (LLVMJitContext *) parent->state->es_jit;
 	} else {
 			context = llvm_create_context(parent->state->es_jit_flags);
 		parent->state->es_jit = &context->base;
 	}
 	funcname = llvm_expand_funcname(context, "evalexpr");
-	printf("Funcname: %s\n", funcname);
+	// printf("Funcname: %s\n", funcname);
 	if (needCompile) {
-		printf("Compile!\n");
+		// printf("Compile!\n");
 		INSTR_TIME_SET_CURRENT(starttime);
 
 		mod = llvm_mutable_module(context);
@@ -2419,7 +2419,7 @@ BuildV1Call(LLVMJitContext *context, LLVMBuilderRef b,
 			LLVMModuleRef mod, FunctionCallInfo fcinfo,
 			LLVMValueRef *v_fcinfo_isnull)
 {	
-	printf("Build V1 Call\n");
+	// printf("Build V1 Call\n");
 	LLVMValueRef v_fn;
 	LLVMValueRef v_fcinfo_isnullp;
 	LLVMValueRef v_retval;

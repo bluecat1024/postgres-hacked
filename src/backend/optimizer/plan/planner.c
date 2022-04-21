@@ -17,7 +17,7 @@
 
 #include <limits.h>
 #include <math.h>
-
+#include <stdio.h>
 #include "access/genam.h"
 #include "access/htup_details.h"
 #include "access/parallel.h"
@@ -1227,6 +1227,7 @@ preprocess_phv_expression(PlannerInfo *root, Expr *expr)
 static void
 grouping_planner(PlannerInfo *root, double tuple_fraction)
 {
+	printf("planner.c: Grouping planner\n");
 	Query	   *parse = root->parse;
 	int64		offset_est = 0;
 	int64		count_est = 0;

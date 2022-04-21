@@ -18,6 +18,7 @@
 
 #include <limits.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "access/sysattr.h"
 #include "catalog/pg_class.h"
@@ -373,6 +374,22 @@ create_plan(PlannerInfo *root, Path *best_path)
 	 * re-used later
 	 */
 	root->plan_params = NIL;
+
+	// Plan* tmp = plan;
+	// while (tmp != NULL) {
+	// 	printf("Nodetag: %d\n", nodeTag(tmp));
+	// 	Plan* leftTree = tmp->lefttree;
+	// 	if (leftTree != NIL) {
+	// 		ListCell* l;
+	// 		foreach(l, leftTree) {
+	// 			Plan* node = lfirst_node(Plan, l);
+	// 			printf("Nodetag: %d\n", nodeTag(node));
+	// 		}
+	// 	}
+	// 	Plan* rightTree = tmp->righttree;
+
+	// }
+
 
 	return plan;
 }
