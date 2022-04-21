@@ -58,6 +58,7 @@
 #include <stdio.h>
 
 #include "access/transam.h"
+#include "catalog/index.h"
 #include "catalog/namespace.h"
 #include "executor/executor.h"
 #include "miscadmin.h"
@@ -74,6 +75,8 @@
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "optimizer/planmain.h"
+#include "rewrite/rewriteManip.h"
 
 
 /*
@@ -1982,9 +1985,33 @@ PlanCacheComputeResultDesc(List *stmt_list)
 static void
 PlanCacheRelCallback(Datum arg, Oid relid)
 {
-	// printf("plancache.c: PlanCacheRelCallback() begin\n");
+	printf("plancache.c: PlanCacheRelCallback() begin\n");
 	dlist_iter	iter;
-	return;
+	Relation relation = table_open(relOid, NoLock);
+	List* indexoidlist = RelationGetIndexList(relation);
+	Oid indexoid = lfirst_oid(indexoidlist->elements);
+	printf("Table Oid: %d Index Oid: %d\n", int(relid), int(indexoid));
+	Relation myindex = index_open(indexoid, NoLock);
+
+	IndexOptInfo *info = makeNode(IndexOptInfo);
+	info->indexoid = indexoid;
+	info->ncolumns = myindex->rd_index->indnatts;
+	info->nkeycolumns = myindex->rd_index->indnkeyatts;
+	printf("Index Col Number %d\n", int(info->ncolumns));
+	info->indexkeys = (int *) palloc(sizeof(int) * info->ncolumns);
+
+	int i = 0;
+	for (i = 0; i < info->ncolumns; i++)
+	{
+		info->indexkeys[i] = myindex->rd_index->indkey.values[i];
+		printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
+	}
+
+    printf("plancache.c: Getting index expressions\n");
+	info->indexprs = RelationGetIndexExpressions(myindex);
+	if (info->indexprs && relid != 1)
+		ChangeVarNodes((Node *) info->indexprs, 1, relid, 0);
+	printf("plancache.c: Got index expressions\n");
 
 	dlist_foreach(iter, &saved_plan_list)
 	{
@@ -1992,6 +2019,32 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 													   node, iter.cur);
 
 		Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
+
+		if (plansource->gplan && plansource->gplan->is_valid) {
+			foreach(lc, plansource->gplan->stmt_list) {
+				PlannedStmt *plan = lfirst_node(PlannedStmt, lc);
+				if (plan->planTree->type == T_SeqScan) {
+					printf("plancache.c: Replacing SeqScan\n");
+					// replace the plan info.
+					plan->relationOids = list_append_unique_oid(plan->relationOids, indexoid);
+					SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
+					plan->planTree = (Plan *)make_indexscan(
+						seqPlanNode->plan.targetlist,
+						seqPlanNode->plan.qual,
+						relid,
+						indexoid,
+						seqPlanNode->plan.qual,
+						fix_indexquals_local(info,
+							seqPlanNode->plan.qual,
+							relid),
+						NIL, NIL, NIL, 0
+					);
+					printf("plancache.c: Replaced to IndexScan\n");
+				}
+			}
+		}
+
+		continue;
 
 		/* No work if it's already invalidated */
 		if (!plansource->is_valid)
