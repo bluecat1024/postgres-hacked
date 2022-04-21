@@ -80,6 +80,7 @@ create table t1 (id int);
 insert into t1 (select (random()*100)::int from generate_series(1, 800000) as g);
 analyze t1;
 explain select sum(id) from t1;
+prepare foo as select id from t1 where id=10;
 ```
 
 See [this post](https://www.percona.com/blog/2018/11/19/installing-and-configuring-jit-in-postgresql-11/)
