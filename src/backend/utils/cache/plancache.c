@@ -144,7 +144,7 @@ static List *fix_indexquals_local(IndexOptInfo *index,
 	List *quals, Oid tablerelid);
 
 static Node *
-fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Oid tablerelid)
+fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index tablerelid)
 {
 	Var		   *result;
 	int			pos;
@@ -223,7 +223,7 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Oid t
 
 static Node *
 fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
-					 Node *clause, List *indexcolnos, Oid tablerelid)
+					 Node *clause, List *indexcolnos, Index tablerelid)
 {
 	/*
 	 * Replace any outer-relation variables with nestloop params.
@@ -292,7 +292,7 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 }
 
 static List *fix_indexquals_local(IndexOptInfo *index,
-	List *quals, Oid tablerelid) {
+	List *quals, Index tablerelid) {
 	List *fix_quals = NIL;
 	int indexcol = 0;
 	List *indexcolnos = list_make1_int(0);
@@ -2244,14 +2244,12 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					plan->planTree = (Plan *)make_indexscan(
 						seqPlanNode->plan.targetlist,
 						seqPlanNode->plan.qual,
-						((SeqScan *)plan->planTree)->scanrelid,
+						seqPlanNode->scanrelid,
 						indexoid,
-						// seqPlanNode->plan.qual,
-						// fix_indexquals_local(info,
-						// 	seqPlanNode->plan.qual,
-						// 	relid),
-						NIL,
-						NIL,
+						seqPlanNode->plan.qual,
+						fix_indexquals_local(info,
+							seqPlanNode->plan.qual,
+							seqPlanNode->scanrelid),
 						NIL, NIL, NIL, 0
 					);
 					printf("plancache.c: Replaced to IndexScan\n");

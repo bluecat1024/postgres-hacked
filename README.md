@@ -50,6 +50,8 @@ export PATH
 6. Start the postgres:
 ```bash
 # Create the data folder
+pg_ctl -D /usr/local/pgsql/data stop
+sudo rm -r /usr/local/pgsql/data/*
 sudo mkdir /usr/local/pgsql/data
 sudo chown ubuntu /usr/local/pgsql/data
 initdb -D /usr/local/pgsql/data
@@ -76,11 +78,14 @@ show jit_above cost;
 To see the JIT explain:
 ```bash
 # Create a sample database
+set max_parallel_workers_per_gather=0;
 create table t1 (id int);
 insert into t1 (select (random()*100)::int from generate_series(1, 800000) as g);
 analyze t1;
 explain select sum(id) from t1;
 prepare foo as select id from t1 where id=10;
+explain analyze execute foo;
+create index lala on t1(id);
 ```
 
 See [this post](https://www.percona.com/blog/2018/11/19/installing-and-configuring-jit-in-postgresql-11/)
