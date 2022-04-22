@@ -129,6 +129,16 @@ static IndexScan *make_indexscan(List *qptlist, List *qpqual, Index scanrelid,
 								 List *indexorderby, List *indexorderbyorig,
 								 List *indexorderbyops,
 								 ScanDirection indexscandir);
+static IndexOnlyScan *
+make_indexonlyscan(List *qptlist,
+				   List *qpqual,
+				   Index scanrelid,
+				   Oid indexid,
+				   List *indexqual,
+				   List *recheckqual,
+				   List *indexorderby,
+				   List *indextlist,
+				   ScanDirection indexscandir);
 
 static List *fix_indexquals_local(IndexOptInfo *index,
 	List *quals, Oid tablerelid);
@@ -153,6 +163,7 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Oid t
 	if (index->indexkeys[indexcol] != 0)
 	{
 		/* It's a simple index column */
+		printf("plancache.c: 4 nums: %d, %d, %d, %d\n", (int)((Var *) node)->varno, (int)tablerelid, (int)((Var *) node)->varattno, (int)index->indexkeys[indexcol]);
 		if (IsA(node, Var) &&
 			((Var *) node)->varno == tablerelid &&
 			((Var *) node)->varattno == index->indexkeys[indexcol])
@@ -2184,52 +2195,69 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				}
 
 				if (plan->planTree->type == T_SeqScan && relid == relOid) {
+					MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
 					Relation relation = table_open(relid, NoLock);
-			if (relation == NULL) {
-				printf("plancache.c: no index, %d\n", (int)relid);
-				return;
-			}
-			List* indexoidlist = RelationGetIndexList(relation);
-			Oid indexoid = lfirst_oid(indexoidlist->elements);
-			printf("Table Oid: %d Index Oid: %d\n", (int)relid, (int)indexoid);
-			Relation myindex = index_open(indexoid, NoLock);
 
-			IndexOptInfo *info = makeNode(IndexOptInfo);
-			info->indexoid = indexoid;
-			info->ncolumns = myindex->rd_index->indnatts;
-			info->nkeycolumns = myindex->rd_index->indnkeyatts;
-			printf("Index Col Number %d\n", info->ncolumns);
-			info->indexkeys = (int *) palloc(sizeof(int) * info->ncolumns);
+					if (relation == NULL) {
+						printf("plancache.c: no index, %d\n", (int)relid);
+						return;
+					}
+					List* indexoidlist = RelationGetIndexList(relation);
+					Oid indexoid = lfirst_oid(indexoidlist->elements);
+					printf("Table Oid: %d Index Oid: %d\n", (int)relid, (int)indexoid);
+					Relation myindex = index_open(indexoid, NoLock);
 
-			int i = 0;
-			for (i = 0; i < info->ncolumns; i++)
-			{
-				info->indexkeys[i] = myindex->rd_index->indkey.values[i];
-				printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
-			}
+					IndexOptInfo *info = makeNode(IndexOptInfo);
+					info->indexoid = indexoid;
+					info->ncolumns = myindex->rd_index->indnatts;
+					info->nkeycolumns = myindex->rd_index->indnkeyatts;
+					printf("Index Col Number %d\n", info->ncolumns);
+					info->indexkeys = (int *) palloc(sizeof(int) * info->ncolumns);
 
-			printf("plancache.c: Getting index expressions\n");
-			info->indexprs = RelationGetIndexExpressions(myindex);
-			if (info->indexprs && relid != 1)
-				ChangeVarNodes((Node *) info->indexprs, 1, relid, 0);
-			printf("plancache.c: Got index expressions\n");
+					int i = 0;
+					for (i = 0; i < info->ncolumns; i++)
+					{
+						info->indexkeys[i] = myindex->rd_index->indkey.values[i];
+						printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
+					}
+
+					printf("plancache.c: Getting index expressions\n");
+					info->indexprs = RelationGetIndexExpressions(myindex);
+					if (info->indexprs && relid != 1)
+						ChangeVarNodes((Node *) info->indexprs, 1, relid, 0);
+					printf("plancache.c: Got index expressions\n");
 			
 					printf("plancache.c: Replacing SeqScan\n");
 					// replace the plan info.
+					i = 0;
+
+					foreach(l, info->indextlist)
+					{
+						TargetEntry *indextle = (TargetEntry *) lfirst(l);
+
+						indextle->resjunk = !info->canreturn[i];
+						i++;
+					}
+
 					plan->relationOids = list_append_unique_oid(plan->relationOids, indexoid);
 					SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
 					plan->planTree = (Plan *)make_indexscan(
 						seqPlanNode->plan.targetlist,
 						seqPlanNode->plan.qual,
-						relid,
+						((SeqScan *)plan->planTree)->scanrelid,
 						indexoid,
-						seqPlanNode->plan.qual,
-						fix_indexquals_local(info,
-							seqPlanNode->plan.qual,
-							relid),
+						// seqPlanNode->plan.qual,
+						// fix_indexquals_local(info,
+						// 	seqPlanNode->plan.qual,
+						// 	relid),
+						NIL,
+						NIL,
 						NIL, NIL, NIL, 0
 					);
 					printf("plancache.c: Replaced to IndexScan\n");
+					table_close(relation, NoLock);
+					index_close(myindex, NoLock);
+					MemoryContextSwitchTo(oldCxt);
 				}
 			}
 		}
@@ -2565,6 +2593,35 @@ make_indexscan(List *qptlist,
 	node->indexorderby = indexorderby;
 	node->indexorderbyorig = indexorderbyorig;
 	node->indexorderbyops = indexorderbyops;
+	node->indexorderdir = indexscandir;
+
+	return node;
+}
+
+static IndexOnlyScan *
+make_indexonlyscan(List *qptlist,
+				   List *qpqual,
+				   Index scanrelid,
+				   Oid indexid,
+				   List *indexqual,
+				   List *recheckqual,
+				   List *indexorderby,
+				   List *indextlist,
+				   ScanDirection indexscandir)
+{
+	IndexOnlyScan *node = makeNode(IndexOnlyScan);
+	Plan	   *plan = &node->scan.plan;
+
+	plan->targetlist = qptlist;
+	plan->qual = qpqual;
+	plan->lefttree = NULL;
+	plan->righttree = NULL;
+	node->scan.scanrelid = scanrelid;
+	node->indexid = indexid;
+	node->indexqual = indexqual;
+	node->recheckqual = recheckqual;
+	node->indexorderby = indexorderby;
+	node->indextlist = indextlist;
 	node->indexorderdir = indexscandir;
 
 	return node;
