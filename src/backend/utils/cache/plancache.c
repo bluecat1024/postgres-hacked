@@ -2170,13 +2170,20 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 		CachedPlanSource *plansource = dlist_container(CachedPlanSource,
 													   node, iter.cur);
 		ListCell *lc;
-
+		
 		Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 
 		if (plansource->gplan && plansource->gplan->is_valid) {
 			foreach(lc, plansource->gplan->stmt_list) {
 				PlannedStmt *plan = lfirst_node(PlannedStmt, lc);
-				if (plan->planTree->type == T_SeqScan && relid == ((SeqScan *)plan->planTree)->scanrelid) {
+				ListCell* l;
+				Oid relOid;
+				foreach(l, plansource->relationOids) {
+					relOid = lfirst_oid(l);
+					printf("Relation OID: %d\n", (int)relOid);
+				}
+
+				if (plan->planTree->type == T_SeqScan && relid == relOid) {
 					Relation relation = table_open(relid, NoLock);
 			if (relation == NULL) {
 				printf("plancache.c: no index, %d\n", (int)relid);
