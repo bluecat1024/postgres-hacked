@@ -178,6 +178,14 @@ static void copy_generic_path_info(Plan *dest, Path *src);
 static void copy_plan_costsize(Plan *dest, Plan *src);
 static void label_sort_with_costsize(PlannerInfo *root, Sort *plan,
 									 double limit_tuples);
+static SeqScan *make_seqscan(List *qptlist, List *qpqual, Index scanrelid);
+static SampleScan *make_samplescan(List *qptlist, List *qpqual, Index scanrelid,
+								   TableSampleClause *tsc);
+static IndexScan *make_indexscan(List *qptlist, List *qpqual, Index scanrelid,
+								 Oid indexid, List *indexqual, List *indexqualorig,
+								 List *indexorderby, List *indexorderbyorig,
+								 List *indexorderbyops,
+								 ScanDirection indexscandir);
 static IndexOnlyScan *make_indexonlyscan(List *qptlist, List *qpqual,
 										 Index scanrelid, Oid indexid,
 										 List *indexqual, List *recheckqual,

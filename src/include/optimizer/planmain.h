@@ -116,15 +116,6 @@ extern void record_plan_function_dependency(PlannerInfo *root, Oid funcid);
 extern void record_plan_type_dependency(PlannerInfo *root, Oid typid);
 extern bool extract_query_dependencies_walker(Node *node, PlannerInfo *root);
 
-static SeqScan *make_seqscan(List *qptlist, List *qpqual, Index scanrelid);
-static SampleScan *make_samplescan(List *qptlist, List *qpqual, Index scanrelid,
-								   TableSampleClause *tsc);
-static IndexScan *make_indexscan(List *qptlist, List *qpqual, Index scanrelid,
-								 Oid indexid, List *indexqual, List *indexqualorig,
-								 List *indexorderby, List *indexorderbyorig,
-								 List *indexorderbyops,
-								 ScanDirection indexscandir);
-static List *fix_indexquals_local(IndexOptInfo *index,
-	List *quals, Oid tablerelid);
+
 
 #endif							/* PLANMAIN_H */

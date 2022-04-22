@@ -77,6 +77,9 @@
 #include "utils/syscache.h"
 #include "optimizer/planmain.h"
 #include "rewrite/rewriteManip.h"
+#include "nodes/makefuncs.h"
+#include "access/table.h"
+#include "access/genam.h"
 
 
 /*
@@ -291,37 +294,6 @@ static List *fix_indexquals_local(IndexOptInfo *index,
 	}
 
 	return fix_quals;
-}
-
-static IndexScan *
-make_indexscan(List *qptlist,
-			   List *qpqual,
-			   Index scanrelid,
-			   Oid indexid,
-			   List *indexqual,
-			   List *indexqualorig,
-			   List *indexorderby,
-			   List *indexorderbyorig,
-			   List *indexorderbyops,
-			   ScanDirection indexscandir)
-{
-	IndexScan  *node = makeNode(IndexScan);
-	Plan	   *plan = &node->scan.plan;
-
-	plan->targetlist = qptlist;
-	plan->qual = qpqual;
-	plan->lefttree = NULL;
-	plan->righttree = NULL;
-	node->scan.scanrelid = scanrelid;
-	node->indexid = indexid;
-	node->indexqual = indexqual;
-	node->indexqualorig = indexqualorig;
-	node->indexorderby = indexorderby;
-	node->indexorderbyorig = indexorderbyorig;
-	node->indexorderbyops = indexorderbyops;
-	node->indexorderdir = indexscandir;
-
-	return node;
 }
 
 /* GUC parameter */
@@ -2521,4 +2493,72 @@ ResetPlanCache(void)
 		cexpr->is_valid = false;
 	}
 	// printf("plancache.c: ResetPlanCache() end\n");
+}
+
+
+static SeqScan *
+make_seqscan(List *qptlist,
+			 List *qpqual,
+			 Index scanrelid)
+{
+	SeqScan    *node = makeNode(SeqScan);
+	Plan	   *plan = &node->plan;
+
+	plan->targetlist = qptlist;
+	plan->qual = qpqual;
+	plan->lefttree = NULL;
+	plan->righttree = NULL;
+	node->scanrelid = scanrelid;
+
+	return node;
+}
+
+static SampleScan *
+make_samplescan(List *qptlist,
+				List *qpqual,
+				Index scanrelid,
+				TableSampleClause *tsc)
+{
+	SampleScan *node = makeNode(SampleScan);
+	Plan	   *plan = &node->scan.plan;
+
+	plan->targetlist = qptlist;
+	plan->qual = qpqual;
+	plan->lefttree = NULL;
+	plan->righttree = NULL;
+	node->scan.scanrelid = scanrelid;
+	node->tablesample = tsc;
+
+	return node;
+}
+
+static IndexScan *
+make_indexscan(List *qptlist,
+			   List *qpqual,
+			   Index scanrelid,
+			   Oid indexid,
+			   List *indexqual,
+			   List *indexqualorig,
+			   List *indexorderby,
+			   List *indexorderbyorig,
+			   List *indexorderbyops,
+			   ScanDirection indexscandir)
+{
+	IndexScan  *node = makeNode(IndexScan);
+	Plan	   *plan = &node->scan.plan;
+
+	plan->targetlist = qptlist;
+	plan->qual = qpqual;
+	plan->lefttree = NULL;
+	plan->righttree = NULL;
+	node->scan.scanrelid = scanrelid;
+	node->indexid = indexid;
+	node->indexqual = indexqual;
+	node->indexqualorig = indexqualorig;
+	node->indexorderby = indexorderby;
+	node->indexorderbyorig = indexorderbyorig;
+	node->indexorderbyops = indexorderbyops;
+	node->indexorderdir = indexscandir;
+
+	return node;
 }
