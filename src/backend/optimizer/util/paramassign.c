@@ -49,7 +49,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
-
+#include <stdio.h>
 #include "nodes/nodeFuncs.h"
 #include "nodes/plannodes.h"
 #include "optimizer/paramassign.h"
@@ -313,7 +313,8 @@ replace_outer_grouping(PlannerInfo *root, GroupingFunc *grp)
  */
 Param *
 replace_nestloop_param_var(PlannerInfo *root, Var *var)
-{
+{	
+	printf("paramassign.c: replace_nestloop_param_var()\n");
 	Param	   *param;
 	NestLoopParam *nlp;
 	ListCell   *lc;

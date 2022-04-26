@@ -2231,30 +2231,32 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					// replace the plan info.
 					i = 0;
 
-					foreach(l, info->indextlist)
-					{
-						TargetEntry *indextle = (TargetEntry *) lfirst(l);
+					// foreach(l, info->indextlist)
+					// {
+					// 	TargetEntry *indextle = (TargetEntry *) lfirst(l);
 
-						indextle->resjunk = !info->canreturn[i];
-						i++;
-					}
+					// 	indextle->resjunk = !info->canreturn[i];
+					// 	i++;
+					// }
 
 					plan->relationOids = list_append_unique_oid(plan->relationOids, indexoid);
 					SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
 					plan->planTree = (Plan *)make_indexscan(
 						seqPlanNode->plan.targetlist,
-						seqPlanNode->plan.qual,
+						// seqPlanNode->plan.qual,
+						NIL,
 						seqPlanNode->scanrelid,
 						indexoid,
-						seqPlanNode->plan.qual,
 						fix_indexquals_local(info,
 							seqPlanNode->plan.qual,
 							seqPlanNode->scanrelid),
+						seqPlanNode->plan.qual,
 						NIL, NIL, NIL, 0
 					);
 					printf("plancache.c: Replaced to IndexScan\n");
 					table_close(relation, NoLock);
 					index_close(myindex, NoLock);
+					list_free(indexoidlist);
 					MemoryContextSwitchTo(oldCxt);
 				}
 			}

@@ -4854,11 +4854,13 @@ replace_nestloop_params(PlannerInfo *root, Node *expr)
 
 static Node *
 replace_nestloop_params_mutator(Node *node, PlannerInfo *root)
-{
+{	
+	printf("createplan.c: replace_nestloop_params_mutator()\n");
 	if (node == NULL)
 		return NULL;
 	if (IsA(node, Var))
-	{
+	{	
+		printf("Is Var\n");
 		Var		   *var = (Var *) node;
 
 		/* Upper-level Vars should be long gone at this point */
@@ -4871,6 +4873,7 @@ replace_nestloop_params_mutator(Node *node, PlannerInfo *root)
 	}
 	if (IsA(node, PlaceHolderVar))
 	{
+		printf("Is PlaceHolderVar\n");
 		PlaceHolderVar *phv = (PlaceHolderVar *) node;
 
 		/* Upper-level PlaceHolderVars should be long gone at this point */
@@ -4940,6 +4943,7 @@ static void
 fix_indexqual_references(PlannerInfo *root, IndexPath *index_path,
 						 List **stripped_indexquals_p, List **fixed_indexquals_p)
 {
+	printf("createplan.c: fix_indexqual_references\n");
 	IndexOptInfo *index = index_path->indexinfo;
 	List	   *stripped_indexquals;
 	List	   *fixed_indexquals;
@@ -5009,7 +5013,8 @@ fix_indexorderby_references(PlannerInfo *root, IndexPath *index_path)
 static Node *
 fix_indexqual_clause(PlannerInfo *root, IndexOptInfo *index, int indexcol,
 					 Node *clause, List *indexcolnos)
-{
+{	
+	printf("createplan.c: fix_indexqual_clause\n");
 	/*
 	 * Replace any outer-relation variables with nestloop params.
 	 *
