@@ -394,7 +394,7 @@ RemovePolicyById(Oid policy_id)
 	 * policy is created and all records are filtered (except for queries from
 	 * the owner).
 	 */
-	CacheInvalidateRelcache(rel);
+	CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	table_close(rel, NoLock);
 
@@ -545,7 +545,7 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 		reltup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 		if (HeapTupleIsValid(reltup))
 		{
-			CacheInvalidateRelcacheByTuple(reltup);
+			CacheInvalidateRelcacheByTuple(reltup, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 			ReleaseSysCache(reltup);
 		}
 	}
@@ -750,7 +750,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	InvokeObjectPostCreateHook(PolicyRelationId, policy_id, 0);
 
 	/* Invalidate Relation Cache */
-	CacheInvalidateRelcache(target_table);
+	CacheInvalidateRelcache(target_table, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/* Clean up. */
 	heap_freetuple(policy_tuple);
@@ -1084,7 +1084,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	heap_freetuple(new_tuple);
 
 	/* Invalidate Relation Cache */
-	CacheInvalidateRelcache(target_table);
+	CacheInvalidateRelcache(target_table, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/* Clean up. */
 	systable_endscan(sscan);
@@ -1190,7 +1190,7 @@ rename_policy(RenameStmt *stmt)
 	 * one too!) are sent SI message to make them rebuild relcache entries.
 	 * (Ideally this should happen automatically...)
 	 */
-	CacheInvalidateRelcache(target_table);
+	CacheInvalidateRelcache(target_table, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/* Clean up. */
 	systable_endscan(sscan);

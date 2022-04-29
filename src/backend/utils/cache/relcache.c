@@ -3792,7 +3792,7 @@ RelationSetNewRelfilenode(Relation relation, char persistence)
 							 false);
 
 		/* Since we're not updating pg_class, must trigger inval manually */
-		CacheInvalidateRelcache(relation);
+		CacheInvalidateRelcache(relation, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 	}
 	else
 	{

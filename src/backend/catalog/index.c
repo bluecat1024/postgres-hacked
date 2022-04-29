@@ -1007,7 +1007,7 @@ index_create(Relation heapRelation,
 	 * Register relcache invalidation on the indexes' heap relation, to
 	 * maintain consistency of its index list
 	 */
-	CacheInvalidateRelcache(heapRelation);
+	CacheInvalidateRelcache(heapRelation, INVAL_ARGV_INDEX_CREATE, indexRelationId);
 
 	/* update pg_inherits and the parent's relhassubclass, if needed */
 	if (OidIsValid(parentIndexRelid))
@@ -1844,7 +1844,7 @@ index_concurrently_set_dead(Oid heapId, Oid indexId)
 	 * sessions will refresh the table's index list.  Forgetting just the
 	 * index's relcache entry is not enough.
 	 */
-	CacheInvalidateRelcache(userHeapRelation);
+	CacheInvalidateRelcache(userHeapRelation, INVAL_ARGV_INDEX_DROP, indexId);
 
 	/*
 	 * Close the relations again, though still holding session lock.
@@ -2084,7 +2084,7 @@ index_constraint_create(Relation heapRelation,
 			 * because it affects some replication behaviors.
 			 */
 			if (marked_as_primary)
-				CacheInvalidateRelcache(heapRelation);
+				CacheInvalidateRelcache(heapRelation, INVAL_ARGV_INDEX_REBUILD, InvalidOid);
 
 			InvokeObjectPostAlterHookArg(IndexRelationId, indexRelationId, 0,
 										 InvalidOid, is_internal);
@@ -2221,7 +2221,7 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 		 * all sessions will refresh any cached plans that might reference the
 		 * index.
 		 */
-		CacheInvalidateRelcache(userHeapRelation);
+		CacheInvalidateRelcache(userHeapRelation, INVAL_ARGV_INDEX_DROP, indexId);
 
 		/* save lockrelid and locktag for below, then close but keep locks */
 		heaprelid = userHeapRelation->rd_lockInfo.lockRelId;
@@ -2363,7 +2363,7 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	 * ensure other backends update their relcache lists of indexes.  (In the
 	 * concurrent case, this is redundant but harmless.)
 	 */
-	CacheInvalidateRelcache(userHeapRelation);
+	CacheInvalidateRelcache(userHeapRelation, INVAL_ARGV_INDEX_DROP, indexId);
 
 	/*
 	 * Close owning rel, but keep lock
@@ -2890,7 +2890,7 @@ index_update_stats(Relation rel,
 	else
 	{
 		/* no need to change tuple, but force relcache inval anyway */
-		CacheInvalidateRelcacheByTuple(tuple);
+		CacheInvalidateRelcacheByTuple(tuple, INVAL_ARGV_INDEX_REBUILD, InvalidOid);
 	}
 
 	heap_freetuple(tuple);
@@ -3756,7 +3756,7 @@ reindex_index(Oid indexId, bool skip_constraint_checks, char persistence,
 			 * update, they'll refresh their list before attempting any update
 			 * on the table.
 			 */
-			CacheInvalidateRelcache(heapRelation);
+			CacheInvalidateRelcache(heapRelation, INVAL_ARGV_INDEX_REBUILD, InvalidOid);
 		}
 
 		table_close(pg_index, RowExclusiveLock);

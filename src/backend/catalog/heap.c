@@ -3006,7 +3006,7 @@ SetRelationNumChecks(Relation rel, int numchecks)
 	else
 	{
 		/* Skip the disk update, but force relcache inval anyway */
-		CacheInvalidateRelcache(rel);
+		CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 	}
 
 	heap_freetuple(reltup);
@@ -3757,7 +3757,7 @@ StorePartitionKey(Relation rel,
 	 * CommandCounterIncrement() will cause the same to be rebuilt using the
 	 * information in just created catalog entry.
 	 */
-	CacheInvalidateRelcache(rel);
+	CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 }
 
 /*
@@ -3864,5 +3864,5 @@ StorePartitionBound(Relation rel, Relation parent, PartitionBoundSpec *bound)
 	if (OidIsValid(defaultPartOid))
 		CacheInvalidateRelcacheByRelid(defaultPartOid);
 
-	CacheInvalidateRelcache(parent);
+	CacheInvalidateRelcache(parent, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 }

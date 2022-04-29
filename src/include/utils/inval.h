@@ -18,7 +18,18 @@
 #include "storage/relfilenode.h"
 #include "utils/relcache.h"
 
+#define INVAL_ARGV_INDEX_NOOP (int8)0
+#define INVAL_ARGV_INDEX_CREATE (int8)1
+#define INVAL_ARGV_INDEX_DROP (int8)2
+#define INVAL_ARGV_INDEX_REBUILD (int8)3
+
 extern PGDLLIMPORT int debug_discard_caches;
+
+/* Index invalidation message for adaptive prepared. */
+typedef struct {
+	int8 indexop;
+	Oid indexoid;
+} AdaptiveIndexMsg;
 
 typedef void (*SyscacheCallbackFunction) (Datum arg, int cacheid, uint32 hashvalue);
 typedef void (*RelcacheCallbackFunction) (Datum arg, Oid relid);
@@ -36,15 +47,17 @@ extern void CommandEndInvalidationMessages(void);
 
 extern void CacheInvalidateHeapTuple(Relation relation,
 									 HeapTuple tuple,
-									 HeapTuple newtuple);
+									 HeapTuple newtuple,
+									 int8 indexop,
+									 Oid indexoid);
 
 extern void CacheInvalidateCatalog(Oid catalogId);
 
-extern void CacheInvalidateRelcache(Relation relation);
+extern void CacheInvalidateRelcache(Relation relation, int8 indexop, Oid indexoid);
 
 extern void CacheInvalidateRelcacheAll(void);
 
-extern void CacheInvalidateRelcacheByTuple(HeapTuple classTuple);
+extern void CacheInvalidateRelcacheByTuple(HeapTuple classTuple, int8 indexop, Oid indexoid);
 
 extern void CacheInvalidateRelcacheByRelid(Oid relid);
 

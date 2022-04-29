@@ -236,6 +236,7 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 
 	if (IsA(clause, OpExpr))
 	{
+		clause = (Node *)(copyObject((OpExpr *) clause));
 		OpExpr	   *op = (OpExpr *) clause;
 
 		/* Replace the indexkey expression with an index Var. */
@@ -246,6 +247,7 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 	}
 	else if (IsA(clause, RowCompareExpr))
 	{
+		clause = (Node *)(copyObject((RowCompareExpr *) clause));
 		RowCompareExpr *rc = (RowCompareExpr *) clause;
 		ListCell   *lca,
 				   *lcai;
@@ -262,6 +264,7 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 	}
 	else if (IsA(clause, ScalarArrayOpExpr))
 	{
+		clause = (Node *)(copyObject((ScalarArrayOpExpr *) clause));
 		ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) clause;
 
 		/* Replace the indexkey expression with an index Var. */
@@ -272,6 +275,7 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 	}
 	else if (IsA(clause, NullTest))
 	{
+		clause = (Node *)(copyObject((NullTest *) clause));
 		NullTest   *nt = (NullTest *) clause;
 
 		/* Replace the indexkey expression with an index Var. */
@@ -318,7 +322,7 @@ int			plan_cache_mode;
 void
 InitPlanCache(void)
 {
-	CacheRegisterRelcacheCallback(PlanCacheRelCallback, (Datum) 0);
+	CacheRegisterRelcacheCallback(PlanCacheRelCallback, (Datum) palloc(sizeof(AdaptiveIndexMsg)));
 	CacheRegisterSyscacheCallback(PROCOID, PlanCacheObjectCallback, (Datum) 0);
 	CacheRegisterSyscacheCallback(TYPEOID, PlanCacheObjectCallback, (Datum) 0);
 	CacheRegisterSyscacheCallback(NAMESPACEOID, PlanCacheSysCallback, (Datum) 0);
@@ -2183,6 +2187,8 @@ static void
 PlanCacheRelCallback(Datum arg, Oid relid)
 {
 	printf("plancache.c: PlanCacheRelCallback() begin, %d\n", (int)relid);
+	AdaptiveIndexMsg *msg = (AdaptiveIndexMsg *)arg;
+	printf("plancache.c: PlanCacheRelCallback() begin, index op %d %d\n", (int)msg->indexop, (int)msg->indexoid);
 	dlist_iter	iter;
 
 	dlist_foreach(iter, &saved_plan_list)
@@ -2271,7 +2277,9 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 			}
 		}
 
-		continue;
+		/* Do not need to further invalidate if is adaptive to index. */
+		if (msg->indexop != INVAL_ARGV_INDEX_NOOP)
+			continue;
 
 		/* No work if it's already invalidated */
 		if (!plansource->is_valid)

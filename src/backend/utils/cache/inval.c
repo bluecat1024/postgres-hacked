@@ -403,7 +403,7 @@ AddCatalogInvalidationMessage(InvalidationListHeader *hdr,
  */
 static void
 AddRelcacheInvalidationMessage(InvalidationListHeader *hdr,
-							   Oid dbId, Oid relId)
+							   Oid dbId, Oid relId, int8 indexop, Oid indexoid)
 {
 	SharedInvalidationMessage msg;
 
@@ -422,6 +422,8 @@ AddRelcacheInvalidationMessage(InvalidationListHeader *hdr,
 	msg.rc.id = SHAREDINVALRELCACHE_ID;
 	msg.rc.dbId = dbId;
 	msg.rc.relId = relId;
+	msg.rc.indexop = indexop;
+	msg.rc.indexoid = indexoid;
 	/* check AddCatcacheInvalidationMessage() for an explanation */
 	VALGRIND_MAKE_MEM_DEFINED(&msg, sizeof(msg));
 
@@ -529,10 +531,10 @@ RegisterCatalogInvalidation(Oid dbId, Oid catId)
  * As above, but register a relcache invalidation event.
  */
 static void
-RegisterRelcacheInvalidation(Oid dbId, Oid relId)
+RegisterRelcacheInvalidation(Oid dbId, Oid relId, int8 indexop, Oid indexoid)
 {
 	AddRelcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
-								   dbId, relId);
+								   dbId, relId, indexop, indexoid);
 
 	/*
 	 * Most of the time, relcache invalidation is associated with system
@@ -611,6 +613,12 @@ LocalExecuteInvalidationMessage(SharedInvalidationMessage *msg)
 			for (i = 0; i < relcache_callback_count; i++)
 			{
 				struct RELCACHECALLBACK *ccitem = relcache_callback_list + i;
+				// TODO: A better way to mark the type of arg datum.
+				if (ccitem->arg != 0U) {
+					AdaptiveIndexMsg *aim_ptr = (AdaptiveIndexMsg *)(ccitem->arg);
+					aim_ptr->indexoid = msg->rc.indexoid;
+					aim_ptr->indexop = msg->rc.indexop;
+				}
 
 				ccitem->function(ccitem->arg, msg->rc.relId);
 			}
@@ -1142,7 +1150,9 @@ CommandEndInvalidationMessages(void)
 void
 CacheInvalidateHeapTuple(Relation relation,
 						 HeapTuple tuple,
-						 HeapTuple newtuple)
+						 HeapTuple newtuple,
+						 int8 indexop,
+						 Oid indexoid)
 {
 	Oid			tupleRelId;
 	Oid			databaseId;
@@ -1257,7 +1267,7 @@ CacheInvalidateHeapTuple(Relation relation,
 	/*
 	 * Yes.  We need to register a relcache invalidation event.
 	 */
-	RegisterRelcacheInvalidation(databaseId, relationId);
+	RegisterRelcacheInvalidation(databaseId, relationId, indexop, indexoid);
 }
 
 /*
@@ -1296,7 +1306,7 @@ CacheInvalidateCatalog(Oid catalogId)
  * entry by CacheInvalidateHeapTuple.  (An example is dropping an index.)
  */
 void
-CacheInvalidateRelcache(Relation relation)
+CacheInvalidateRelcache(Relation relation, int8 indexop, Oid indexoid)
 {
 	Oid			databaseId;
 	Oid			relationId;
@@ -1309,7 +1319,7 @@ CacheInvalidateRelcache(Relation relation)
 	else
 		databaseId = MyDatabaseId;
 
-	RegisterRelcacheInvalidation(databaseId, relationId);
+	RegisterRelcacheInvalidation(databaseId, relationId, indexop, indexoid);
 }
 
 /*
@@ -1324,7 +1334,7 @@ CacheInvalidateRelcacheAll(void)
 {
 	PrepareInvalidationState();
 
-	RegisterRelcacheInvalidation(InvalidOid, InvalidOid);
+	RegisterRelcacheInvalidation(InvalidOid, InvalidOid, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 }
 
 /*
@@ -1332,7 +1342,7 @@ CacheInvalidateRelcacheAll(void)
  *		As above, but relation is identified by passing its pg_class tuple.
  */
 void
-CacheInvalidateRelcacheByTuple(HeapTuple classTuple)
+CacheInvalidateRelcacheByTuple(HeapTuple classTuple, int8 indexop, Oid indexoid)
 {
 	Form_pg_class classtup = (Form_pg_class) GETSTRUCT(classTuple);
 	Oid			databaseId;
@@ -1345,7 +1355,7 @@ CacheInvalidateRelcacheByTuple(HeapTuple classTuple)
 		databaseId = InvalidOid;
 	else
 		databaseId = MyDatabaseId;
-	RegisterRelcacheInvalidation(databaseId, relationId);
+	RegisterRelcacheInvalidation(databaseId, relationId, indexop, indexoid);
 }
 
 /*
@@ -1364,7 +1374,7 @@ CacheInvalidateRelcacheByRelid(Oid relid)
 	tup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
-	CacheInvalidateRelcacheByTuple(tup);
+	CacheInvalidateRelcacheByTuple(tup, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 	ReleaseSysCache(tup);
 }
 
