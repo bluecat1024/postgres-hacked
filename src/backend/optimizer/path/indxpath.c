@@ -16,7 +16,7 @@
 #include "postgres.h"
 
 #include <math.h>
-
+#include <stdio.h>
 #include "access/stratnum.h"
 #include "access/sysattr.h"
 #include "catalog/pg_am.h"
@@ -3342,8 +3342,13 @@ check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 		if (index->indpred)
 			have_partial = true;
 	}
-	if (!have_partial)
-		return;
+	if (!have_partial) {
+		printf("indxpath.c: not have partial!\n");
+		return; 
+	} else {
+		printf("indxpath.c: have partial!\n");
+	}
+		
 
 	/*
 	 * Construct a list of clauses that we can assume true for the purpose of

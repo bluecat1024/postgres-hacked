@@ -1159,6 +1159,15 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 		Plan* planTree = stmt->planTree;
 		PrintTree(planTree);
 
+		if (planTree->type == T_Sort) {
+			Sort* sortNode = (Sort*) planTree;
+			printf("Sort numcols = %d\n", sortNode->numCols);
+			int i = 0;
+			for (i = 0; i < sortNode->numCols; i++) {
+				printf("%d iteration\n", i);
+				printf("Attr num: %d, sort operator: %d, collation: %d, bool first:%d\n", sortNode->sortColIdx[i], sortNode->sortOperators[i], sortNode->collations[i], sortNode->nullsFirst[i]);
+			}
+		}
 	}
 	/* Release snapshot if we got one */
 	if (snapshot_set)
@@ -2235,7 +2244,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					// {
 					// 	TargetEntry *indextle = (TargetEntry *) lfirst(l);
 
-					// 	indextle->resjunk = !info->canreturn[i];
+						// indextle->resjunk = !info->canreturn[i];
 					// 	i++;
 					// }
 

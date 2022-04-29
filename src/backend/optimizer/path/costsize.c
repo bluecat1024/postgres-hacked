@@ -72,7 +72,7 @@
 #include "postgres.h"
 
 #include <math.h>
-
+#include <stdio.h>
 #include "access/amapi.h"
 #include "access/htup_details.h"
 #include "access/tsmapi.h"
@@ -4925,13 +4925,14 @@ set_baserel_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 
 	/* Should only be applied to base relations */
 	Assert(rel->relid > 0);
-
-	nrows = rel->tuples *
-		clauselist_selectivity(root,
+	double selectivity = (double)clauselist_selectivity(root,
 							   rel->baserestrictinfo,
 							   0,
 							   JOIN_INNER,
 							   NULL);
+	printf("costsize.c: selectivity: %f\n", selectivity);
+	nrows = rel->tuples * selectivity;
+		
 
 	rel->rows = clamp_row_est(nrows);
 

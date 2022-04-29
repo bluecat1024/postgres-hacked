@@ -6004,7 +6004,7 @@ make_sort(Plan *lefttree, int numCols,
 	node->sortOperators = sortOperators;
 	node->collations = collations;
 	node->nullsFirst = nullsFirst;
-
+	
 	return node;
 }
 

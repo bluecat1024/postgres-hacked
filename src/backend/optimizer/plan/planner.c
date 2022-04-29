@@ -1261,6 +1261,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 
 	if (parse->setOperations)
 	{
+		printf("Have set operations (order by)\n");
 		/*
 		 * If there's a top-level ORDER BY, assume we have to fetch all the
 		 * tuples.  This might be too simplistic given all the hackery below
