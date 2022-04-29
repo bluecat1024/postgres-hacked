@@ -2209,6 +2209,108 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					printf("Relation OID: %d\n", (int)relOid);
 				}
 
+				if (plan->planTree->type == T_Sort && relid == relOid) {
+					MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
+					Plan* scanNode = plan->planTree->lefttree;
+					Sort* sortNode = (Sort*) plan->planTree;
+					if (scanNode->type == T_SeqScan) {
+						printf("plancache.c: Start sort+seq -> index\n");
+						// Copy from index node creation
+						Relation relation = table_open(relid, NoLock);
+
+						if (relation == NULL) {
+							printf("plancache.c: no index, %d\n", (int)relid);
+							return;
+						}
+						List* indexoidlist = RelationGetIndexList(relation);
+						Oid indexoid = lfirst_oid(indexoidlist->elements);
+						printf("Table Oid: %d Index Oid: %d\n", (int)relid, (int)indexoid);
+						Relation myindex = index_open(indexoid, NoLock);
+
+						IndexOptInfo *info = makeNode(IndexOptInfo);
+						info->indexoid = indexoid;
+						info->ncolumns = myindex->rd_index->indnatts;
+						info->nkeycolumns = myindex->rd_index->indnkeyatts;
+						printf("Index Col Number %d\n", info->ncolumns);
+						info->indexkeys = (int *) palloc(sizeof(int) * info->ncolumns);
+
+						int i = 0;
+						for (i = 0; i < info->ncolumns; i++)
+						{
+							info->indexkeys[i] = myindex->rd_index->indkey.values[i];
+							printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
+						}
+
+						printf("plancache.c: Getting index expressions\n");
+						info->indexprs = RelationGetIndexExpressions(myindex);
+						if (info->indexprs && relid != 1)
+							ChangeVarNodes((Node *) info->indexprs, 1, relid, 0);
+						printf("plancache.c: Got index expressions\n");
+				
+						printf("plancache.c: Replacing SeqScan\n");
+						// replace the plan info
+
+						plan->relationOids = list_append_unique_oid(plan->relationOids, indexoid);
+						SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
+
+						printf("plancache.c: Replaced to IndexScan\n");
+						table_close(relation, NoLock);
+						index_close(myindex, NoLock);
+						list_free(indexoidlist);
+						// Copy ends here
+
+						// Check if all attributes for sort exist in the index column
+						bool allExist = true;
+						i = 0;
+						int j = 0;
+						for (i = 0; i < sortNode->numCols; i++) {
+							bool attrFound = false;
+							for (j = 0; j < info->ncolumns; j++) {
+								if ((int)sortNode->sortColIdx[i] == (int)info->indexkeys[j]) {
+									attrFound = true;
+									break;
+								}
+							}
+							if (!attrFound) {
+								allExist = false;
+								break;
+							}
+						}
+						printf("plancache.c: All attributes in index columns? %d\n", allExist);
+
+						if (allExist) {
+							// Check order
+							int numOfIncreasingOids = 51;
+							int increasingOrderOids[] = {37, 58, 95, 97, 255, 261, 5073, 2799, 412, 418, 534, 535, 609, 645, 622, 631,
+							660, 664, 672, 1095, 1552, 1122, 1132, 1322, 1332, 1502, 1587, 1222, 3364, 1203, 1754, 1786, 1806, 1864,
+							1957, 2062, 2345, 2358, 2371, 2384, 2534, 2540, 2974, 3224, 3518, 3627, 3674, 2990, 3884, 3242, 2862};
+							int i = 0;
+							bool increasing = false;
+							for (i = 0; i < numOfIncreasingOids; i++) {
+								if (sortNode->sortOperators[0] == increasingOrderOids[i]) {
+									increasing = true;
+									break;
+								}
+							}
+							printf("plancache.c: Sort order increasing? %d\n", increasing);
+							plan->planTree = (Plan *)make_indexscan(
+								seqPlanNode->plan.targetlist,
+								// seqPlanNode->plan.qual,
+								NIL,
+								seqPlanNode->scanrelid,
+								indexoid,
+								fix_indexquals_local(info,
+									seqPlanNode->plan.qual,
+									seqPlanNode->scanrelid),
+								seqPlanNode->plan.qual,
+								NIL, NIL, NIL, increasing ? 0 : -1
+							);
+							printf("plancache.c: sort+seq->index finishes\n");
+						}
+					}
+					MemoryContextSwitchTo(oldCxt);
+				}
+
 				if (plan->planTree->type == T_SeqScan && relid == relOid) {
 					MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
 					Relation relation = table_open(relid, NoLock);
