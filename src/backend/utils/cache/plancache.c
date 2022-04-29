@@ -1356,6 +1356,8 @@ cached_plan_cost(CachedPlan *plan, bool include_planner)
 		}
 	}
 
+	printf("plancache.c: cached_plan_cost: %f\n", result);
+
 	return result;
 }
 

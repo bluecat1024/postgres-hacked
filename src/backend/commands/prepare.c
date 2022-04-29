@@ -317,9 +317,10 @@ ExecuteQuery(ParseState *pstate,
 	 * Run the portal as appropriate.
 	 */
 	PortalStart(portal, paramLI, eflags, GetActiveSnapshot());
-
+	TimestampTz start = GetCurrentTimestamp();
 	(void) PortalRun(portal, count, false, true, dest, dest, qc);
-
+	TimestampTz end = GetCurrentTimestamp();
+	printf("prepare.c: run time: %ld\n", end - start);
 	PortalDrop(portal, false);
 
 	if (estate)
