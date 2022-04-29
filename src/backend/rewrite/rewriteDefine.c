@@ -910,7 +910,7 @@ EnableDisableRule(Relation rel, const char *rulename,
 	 * Otherwise they will fail to apply the change promptly.
 	 */
 	if (changed)
-		CacheInvalidateRelcache(rel);
+		CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 }
 
 
@@ -1023,7 +1023,7 @@ RenameRewriteRule(RangeVar *relation, const char *oldName,
 	 * one too!) are sent SI message to make them rebuild relcache entries.
 	 * (Ideally this should happen automatically...)
 	 */
-	CacheInvalidateRelcache(targetrel);
+	CacheInvalidateRelcache(targetrel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	ObjectAddressSet(address, RewriteRelationId, ruleOid);
 

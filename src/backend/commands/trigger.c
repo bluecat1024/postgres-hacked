@@ -1022,7 +1022,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 		CommandCounterIncrement();
 	}
 	else
-		CacheInvalidateRelcacheByTuple(tuple);
+		CacheInvalidateRelcacheByTuple(tuple, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	heap_freetuple(tuple);
 	table_close(pgrel, RowExclusiveLock);
@@ -1306,7 +1306,7 @@ RemoveTriggerById(Oid trigOid)
 	 * There's no great harm in leaving relhastriggers true even if there are
 	 * no triggers left.
 	 */
-	CacheInvalidateRelcache(rel);
+	CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/* Keep lock on trigger's rel until end of xact */
 	table_close(rel, NoLock);
@@ -1506,7 +1506,7 @@ renametrig(RenameStmt *stmt)
 		 * this one too!) are sent SI message to make them rebuild relcache
 		 * entries.  (Ideally this should happen automatically...)
 		 */
-		CacheInvalidateRelcache(targetrel);
+		CacheInvalidateRelcache(targetrel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 	}
 	else
 	{
@@ -1636,7 +1636,7 @@ EnableDisableTrigger(Relation rel, const char *tgname,
 	 * Otherwise they will fail to apply the change promptly.
 	 */
 	if (changed)
-		CacheInvalidateRelcache(rel);
+		CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 }
 
 

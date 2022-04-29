@@ -3206,7 +3206,7 @@ SetRelationHasSubclass(Oid relationId, bool relhassubclass)
 	else
 	{
 		/* no need to change tuple, but force relcache rebuild anyway */
-		CacheInvalidateRelcacheByTuple(tuple);
+		CacheInvalidateRelcacheByTuple(tuple, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 	}
 
 	heap_freetuple(tuple);
@@ -3671,7 +3671,7 @@ rename_constraint_internal(Oid myrelid,
 		/*
 		 * Invalidate relcache so as others can see the new constraint name.
 		 */
-		CacheInvalidateRelcache(targetrelation);
+		CacheInvalidateRelcache(targetrelation, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 		relation_close(targetrelation, NoLock); /* close rel but keep lock */
 	}
@@ -10389,7 +10389,7 @@ ATExecAlterConstrRecurse(Constraint *cmdcon, Relation conrel, Relation tgrel,
 		changed = true;
 
 		/* Make new constraint flags visible to others */
-		CacheInvalidateRelcache(rel);
+		CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 		/*
 		 * Now we need to update the multiple entries in pg_trigger that
@@ -10650,7 +10650,7 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 			 * Invalidate relcache so that others see the new validated
 			 * constraint.
 			 */
-			CacheInvalidateRelcache(rel);
+			CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 		}
 
 		/*
@@ -15359,7 +15359,7 @@ relation_mark_replica_identity(Relation rel, char ri_type, Oid indexOid,
 			 * all sessions will refresh the table's replica identity index
 			 * before attempting any UPDATE or DELETE on the table.
 			 */
-			CacheInvalidateRelcache(rel);
+			CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 		}
 		heap_freetuple(pg_index_tuple);
 	}
@@ -15603,7 +15603,7 @@ ATExecGenericOptions(Relation rel, List *options)
 	 * Invalidate relcache so that all sessions will refresh any cached plans
 	 * that might depend on the old options.
 	 */
-	CacheInvalidateRelcache(rel);
+	CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	InvokeObjectPostAlterHook(ForeignTableRelationId,
 							  RelationGetRelid(rel), 0);
@@ -17830,7 +17830,7 @@ ATExecDetachPartition(List **wqueue, AlteredTableInfo *tab, Relation rel,
 										  RelationGetRelationName(partRel));
 
 		/* Invalidate relcache entries for the parent -- must be before close */
-		CacheInvalidateRelcache(rel);
+		CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 		table_close(partRel, NoLock);
 		table_close(rel, NoLock);
@@ -18062,7 +18062,7 @@ DetachPartitionFinalize(Relation rel, Relation partRel, bool concurrent,
 	 * Invalidate the parent's relcache so that the partition is no longer
 	 * included in its partition descriptor.
 	 */
-	CacheInvalidateRelcache(rel);
+	CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/*
 	 * If the partition we just detached is partitioned itself, invalidate

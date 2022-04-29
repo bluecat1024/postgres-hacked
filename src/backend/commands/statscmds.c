@@ -541,7 +541,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	/*
 	 * Invalidate relcache so that others see the new statistics object.
 	 */
-	CacheInvalidateRelcache(rel);
+	CacheInvalidateRelcache(rel, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	relation_close(rel, NoLock);
 

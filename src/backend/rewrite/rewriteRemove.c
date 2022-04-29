@@ -93,7 +93,7 @@ RemoveRewriteRuleById(Oid ruleOid)
 	 * Issue shared-inval notice to force all backends (including me!) to
 	 * update relcache entries with the new rule set.
 	 */
-	CacheInvalidateRelcache(event_relation);
+	CacheInvalidateRelcache(event_relation, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/* Close rel, but keep lock till commit... */
 	table_close(event_relation, NoLock);

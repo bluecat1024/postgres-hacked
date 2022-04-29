@@ -950,7 +950,7 @@ copy_table_data(Oid OIDNewHeap, Oid OIDOldHeap, Oid OIDOldIndex, bool verbose,
 	if (OIDOldHeap != RelationRelationId)
 		CatalogTupleUpdate(relRelation, &reltup->t_self, reltup);
 	else
-		CacheInvalidateRelcacheByTuple(reltup);
+		CacheInvalidateRelcacheByTuple(reltup, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 
 	/* Clean up. */
 	heap_freetuple(reltup);
@@ -1177,8 +1177,8 @@ swap_relation_files(Oid r1, Oid r2, bool target_is_pg_class,
 	else
 	{
 		/* no update ... but we do still need relcache inval */
-		CacheInvalidateRelcacheByTuple(reltup1);
-		CacheInvalidateRelcacheByTuple(reltup2);
+		CacheInvalidateRelcacheByTuple(reltup1, INVAL_ARGV_INDEX_NOOP, InvalidOid);
+		CacheInvalidateRelcacheByTuple(reltup2, INVAL_ARGV_INDEX_NOOP, InvalidOid);
 	}
 
 	/*
