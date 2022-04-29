@@ -319,7 +319,7 @@ static List *fix_indexquals_local(IndexOptInfo *index,
 #define IndexCollMatchesExprColl(idxcollation, exprcollation) \
 	((idxcollation) == InvalidOid || (idxcollation) == (exprcollation))
 
-static bool clause_matches_index(Expr *clause, IndexOptInfo *info) {
+static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 	int idx;
 	bool isMatch = false;
 	Oid	opfamily;
@@ -329,6 +329,7 @@ static bool clause_matches_index(Expr *clause, IndexOptInfo *info) {
 
 	if (IsA(clause, OpExpr)) {
 		OpExpr *op = (OpExpr *)clause;
+		printf("plancache.c: clause_matches_index, op len %d\n", list_length(op->args));
 		if (list_length(op->args) == 2) {
 			Node *leftop = (Node *) linitial(op->args);
 			Node *rightop = (Node *) lsecond(op->args);
@@ -338,6 +339,7 @@ static bool clause_matches_index(Expr *clause, IndexOptInfo *info) {
 			for (idx = 0; idx < info->nkeycolumns; idx++) {
 				opfamily = info->opfamily[idx];
 				idxcollation = info->indexcollations[idx];
+				printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && op_in_opfamily(expr_op, opfamily)) {
 					isMatch = true;
@@ -353,6 +355,7 @@ static bool clause_matches_index(Expr *clause, IndexOptInfo *info) {
 			}
 		}
 	} else if (IsA(clause, RowCompareExpr)) {
+		printf("plancache.c: clause_matches_index, row compare\n");
 		if (info->relam == BTREE_AM_OID) {
 			RowCompareExpr *rc = (RowCompareExpr *)clause;
 			Node *leftop = (Node *) linitial(rc->largs);
@@ -363,6 +366,7 @@ static bool clause_matches_index(Expr *clause, IndexOptInfo *info) {
 				bool exprMatch = false;
 				opfamily = info->opfamily[idx];
 				idxcollation = info->indexcollations[idx];
+				printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
 
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
@@ -2306,7 +2310,8 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 		
 		Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 
-		if (plansource->gplan && plansource->gplan->is_valid) {
+		if (plansource->gplan && plansource->gplan->is_valid
+			&& msg->indexop == INVAL_ARGV_INDEX_CREATE || msg->indexop == INVAL_ARGV_INDEX_DROP) {
 			foreach(lc, plansource->gplan->stmt_list) {
 				PlannedStmt *plan = lfirst_node(PlannedStmt, lc);
 				ListCell* l;
@@ -2359,22 +2364,13 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 			
 					printf("plancache.c: Replacing SeqScan\n");
 					// replace the plan info.
-					i = 0;
-
-					// foreach(l, info->indextlist)
-					// {
-					// 	TargetEntry *indextle = (TargetEntry *) lfirst(l);
-
-					// 	indextle->resjunk = !info->canreturn[i];
-					// 	i++;
-					// }
 
 					// separate index qual and other qual.
 					List *indexquals = NIL;
 					List *seqquals = NIL;
 					ListCell *quallc;
 					foreach(quallc, seqPlanNode->plan.qual) {
-						Expr *clause = lfirst_node(Expr, lc);
+						Node *clause = lfirst_node(Node, quallc);
 						if (clause_matches_index(clause, info)) {
 							indexquals = lappend(indexquals, clause);
 							printf("plancache.c: Add index qual\n");

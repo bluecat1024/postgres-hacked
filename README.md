@@ -52,6 +52,7 @@ export PATH
 # Create the data folder
 pg_ctl -D /usr/local/pgsql/data stop
 sudo rm -r /usr/local/pgsql/data/*
+rm logfile
 sudo mkdir /usr/local/pgsql/data
 sudo chown ubuntu /usr/local/pgsql/data
 initdb -D /usr/local/pgsql/data
