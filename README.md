@@ -79,7 +79,7 @@ To see the JIT explain:
 ```bash
 # Create a sample database
 set max_parallel_workers_per_gather=0;
-set enable_bitmap_scan=off;
+set enable_bitmapscan=off;
 create table t1 (id int, val int);
 insert into t1 (select (random()*100)::int, (random()*100)::int from generate_series(1, 800000) as g);
 prepare foo as select val from t1 where id=10;

@@ -76,10 +76,15 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "optimizer/planmain.h"
+#include "optimizer/paths.h"
 #include "rewrite/rewriteManip.h"
 #include "nodes/makefuncs.h"
 #include "access/table.h"
 #include "access/genam.h"
+#include "access/amapi.h"
+#include "catalog/pg_opfamily.h"
+#include "catalog/pg_am.h"
+#include "utils/lsyscache.h"
 
 
 /*
@@ -309,6 +314,117 @@ static List *fix_indexquals_local(IndexOptInfo *index,
 	}
 
 	return fix_quals;
+}
+
+#define IndexCollMatchesExprColl(idxcollation, exprcollation) \
+	((idxcollation) == InvalidOid || (idxcollation) == (exprcollation))
+
+static bool clause_matches_index(Expr *clause, IndexOptInfo *info) {
+	int idx;
+	bool isMatch = false;
+	Oid	opfamily;
+	Oid	expr_op;
+	Oid	expr_coll;
+	Oid idxcollation;
+
+	if (IsA(clause, OpExpr)) {
+		OpExpr *op = (OpExpr *)clause;
+		if (list_length(op->args) == 2) {
+			Node *leftop = (Node *) linitial(op->args);
+			Node *rightop = (Node *) lsecond(op->args);
+			Oid	comm_op;
+			expr_coll = op->inputcollid;
+			expr_op = op->opno;
+			for (idx = 0; idx < info->nkeycolumns; idx++) {
+				opfamily = info->opfamily[idx];
+				idxcollation = info->indexcollations[idx];
+				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
+					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && op_in_opfamily(expr_op, opfamily)) {
+					isMatch = true;
+					break;
+				}
+				comm_op = get_commutator(expr_op);
+				if (match_index_to_operand(rightop, idx, info) && !contain_volatile_functions(leftop)
+					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && OidIsValid(comm_op)
+					&& op_in_opfamily(comm_op, opfamily)) {
+					isMatch = true;
+					break;
+				}
+			}
+		}
+	} else if (IsA(clause, RowCompareExpr)) {
+		if (info->relam == BTREE_AM_OID) {
+			RowCompareExpr *rc = (RowCompareExpr *)clause;
+			Node *leftop = (Node *) linitial(rc->largs);
+			Node *rightop = (Node *) linitial(rc->rargs);
+			expr_op = linitial_oid(rc->opnos);
+			expr_coll = linitial_oid(rc->inputcollids);
+			for (idx = 0; idx < info->nkeycolumns; idx++) {
+				bool exprMatch = false;
+				opfamily = info->opfamily[idx];
+				idxcollation = info->indexcollations[idx];
+
+				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
+					&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
+					exprMatch = true;
+				}
+
+				expr_op = get_commutator(expr_op);
+				if (match_index_to_operand(rightop, idx, info) && !contain_volatile_functions(leftop)
+					&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
+					exprMatch = true;
+				}
+
+				if (exprMatch && OidIsValid(expr_op)) {
+					switch (get_op_opfamily_strategy(expr_op, opfamily))
+					{
+						case BTLessStrategyNumber:
+						case BTLessEqualStrategyNumber:
+						case BTGreaterEqualStrategyNumber:
+						case BTGreaterStrategyNumber:
+							isMatch = true;
+							break;
+					}
+				}
+
+				if (isMatch) {
+					break;
+				}
+			}
+		}
+
+	} else if (IsA(clause, ScalarArrayOpExpr)) {
+		ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) clause;
+
+		if (saop->useOr) {
+			Node *leftop = (Node *) linitial(saop->args);
+			Node *rightop = (Node *) lsecond(saop->args);
+			expr_op = saop->opno;
+			expr_coll = saop->inputcollid;
+
+			for (idx = 0; idx < info->nkeycolumns; idx++) {
+				opfamily = info->opfamily[idx];
+				idxcollation = info->indexcollations[idx];
+				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
+					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && op_in_opfamily(expr_op, opfamily)) {
+					isMatch = true;
+					break;
+				}
+			}
+		}
+
+	} else if (info->amsearchnulls && IsA(clause, NullTest)) {
+		NullTest   *nt = (NullTest *) clause;
+		for (idx = 0; idx < info->nkeycolumns; idx++) {
+			if (!nt->argisrow &&
+				match_index_to_operand((Node *) nt->arg, idx, info)) {
+				isMatch = true;
+				break;
+			}
+		}
+	}
+
+	return isMatch;
 }
 
 /* GUC parameter */
@@ -2202,29 +2318,37 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 
 				if (plan->planTree->type == T_SeqScan && relid == relOid) {
 					MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
-					Relation relation = table_open(relid, NoLock);
-
-					if (relation == NULL) {
-						printf("plancache.c: no index, %d\n", (int)relid);
-						return;
-					}
-					List* indexoidlist = RelationGetIndexList(relation);
-					Oid indexoid = lfirst_oid(indexoidlist->elements);
+					SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
+					
+					Oid indexoid = msg->indexoid;
 					printf("Table Oid: %d Index Oid: %d\n", (int)relid, (int)indexoid);
 					Relation myindex = index_open(indexoid, NoLock);
 
 					IndexOptInfo *info = makeNode(IndexOptInfo);
+					RelOptInfo *relinfo = makeNode(RelOptInfo);
+					relinfo->relid = seqPlanNode->scanrelid;
+
 					info->indexoid = indexoid;
+					info->rel = relinfo;
 					info->ncolumns = myindex->rd_index->indnatts;
 					info->nkeycolumns = myindex->rd_index->indnkeyatts;
 					printf("Index Col Number %d\n", info->ncolumns);
 					info->indexkeys = (int *) palloc(sizeof(int) * info->ncolumns);
+					info->indexcollations = (Oid *) palloc(sizeof(Oid) * info->nkeycolumns);
+					info->opfamily = (Oid *) palloc(sizeof(Oid) * info->nkeycolumns);
+					info->relam = myindex->rd_rel->relam;
+					info->amsearchnulls = myindex->rd_indam->amsearchnulls;
 
 					int i = 0;
 					for (i = 0; i < info->ncolumns; i++)
 					{
 						info->indexkeys[i] = myindex->rd_index->indkey.values[i];
 						printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
+					}
+					for (i = 0; i < info->nkeycolumns; i++)
+					{
+						info->opfamily[i] = myindex->rd_opfamily[i];
+						info->indexcollations[i] = myindex->rd_indcollation[i];
 					}
 
 					printf("plancache.c: Getting index expressions\n");
@@ -2245,24 +2369,38 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					// 	i++;
 					// }
 
-					plan->relationOids = list_append_unique_oid(plan->relationOids, indexoid);
-					SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
+					// separate index qual and other qual.
+					List *indexquals = NIL;
+					List *seqquals = NIL;
+					ListCell *quallc;
+					foreach(quallc, seqPlanNode->plan.qual) {
+						Expr *clause = lfirst_node(Expr, lc);
+						if (clause_matches_index(clause, info)) {
+							indexquals = lappend(indexquals, clause);
+							printf("plancache.c: Add index qual\n");
+						} else {
+							seqquals = lappend(seqquals, clause);
+							printf("plancache.c: Add seq qual\n");
+						}
+					}
 					plan->planTree = (Plan *)make_indexscan(
 						seqPlanNode->plan.targetlist,
-						// seqPlanNode->plan.qual,
-						NIL,
+						seqquals,
 						seqPlanNode->scanrelid,
 						indexoid,
 						fix_indexquals_local(info,
-							seqPlanNode->plan.qual,
+							indexquals,
 							seqPlanNode->scanrelid),
-						seqPlanNode->plan.qual,
+						indexquals,
 						NIL, NIL, NIL, 0
 					);
 					printf("plancache.c: Replaced to IndexScan\n");
-					table_close(relation, NoLock);
 					index_close(myindex, NoLock);
-					list_free(indexoidlist);
+					pfree(relinfo);
+					pfree(info->indexkeys);
+					pfree(info->indexcollations);
+					pfree(info->opfamily);
+					pfree(info);
 					MemoryContextSwitchTo(oldCxt);
 				}
 			}
