@@ -1470,6 +1470,7 @@ static CachedPlan *
 BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 				ParamListInfo boundParams, QueryEnvironment *queryEnv)
 {
+	TimestampTz start = GetCurrentTimestamp();
 	// printf("plancache.c: BuildCachedPlan\n");
 	CachedPlan *plan;
 	List	   *plist;
@@ -1610,6 +1611,8 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 
 	MemoryContextSwitchTo(oldcxt);
 
+	TimestampTz end = GetCurrentTimestamp();
+	printf("Build plan time: %d micro seconds\n", end - start);
 	return plan;
 }
 
