@@ -433,7 +433,7 @@ static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 }
 
 static Plan *create_index_trigger(Plan *node, List *params) {
-	if (nodeTag(node) != T_SeqScan && nodeTag(node) != T_IndexScan) {
+	if (nodeTag(node) != T_SeqScan) {
 		return node;
 	}
 
@@ -581,7 +581,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 				indexquals,
 				seqPlanNode->scanrelid),
 			indexquals,
-			NIL, NIL, NIL, 0
+			NIL, NIL, NIL, increasing ? 0 : -1
 		);
 		newNode->backupNode = node;
 		printf("plancache.c: sort+seq->index finishes\n");
