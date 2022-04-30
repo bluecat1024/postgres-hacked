@@ -1612,7 +1612,7 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	MemoryContextSwitchTo(oldcxt);
 
 	TimestampTz end = GetCurrentTimestamp();
-	printf("Build plan time: %d micro seconds\n", end - start);
+	printf("Build plan time: %ld micro seconds\n", end - start);
 	return plan;
 }
 
@@ -2700,7 +2700,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 			}
 			if (changeHappen) {
 				TimestampTz end = GetCurrentTimestamp();
-				printf("Substitution overhead: %d micro seconds\n", (end - begin));
+				printf("Substitution overhead: %ld micro seconds\n", (end - begin));
 			}
 
 		}
@@ -3143,5 +3143,5 @@ static void switch_plan_tree(PlannedStmt* stmt, CachedPlanSource *plansource) {
 	stmt->state = (stmt->state + 1) % 2;
 
 	TimestampTz end = GetCurrentTimestamp();
-	printf("Switching overhead: %d micro second\n", end - begin);
+	printf("Switching overhead: %ld micro second\n", end - begin);
 }
