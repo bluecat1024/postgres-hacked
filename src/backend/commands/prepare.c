@@ -17,6 +17,7 @@
 #include "postgres.h"
 
 #include <limits.h>
+#include <stdio.h>
 
 #include "access/xact.h"
 #include "catalog/pg_type.h"
@@ -288,9 +289,10 @@ ExecuteQuery(ParseState *pstate,
 	 * Run the portal as appropriate.
 	 */
 	PortalStart(portal, paramLI, eflags, GetActiveSnapshot());
-
+	TimestampTz start = GetCurrentTimestamp();
 	(void) PortalRun(portal, count, false, true, dest, dest, qc);
-
+	TimestampTz end = GetCurrentTimestamp();
+	printf("Execution time: %ld micro seconds\n", (end - start));
 	PortalDrop(portal, false);
 
 	if (estate)

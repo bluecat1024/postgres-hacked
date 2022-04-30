@@ -55,7 +55,7 @@
 #include "postgres.h"
 
 #include <limits.h>
-
+#include <stdio.h>
 #include "access/transam.h"
 #include "catalog/namespace.h"
 #include "executor/executor.h"
@@ -879,6 +879,7 @@ static CachedPlan *
 BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 				ParamListInfo boundParams, QueryEnvironment *queryEnv)
 {
+	TimestampTz start = GetCurrentTimestamp();
 	CachedPlan *plan;
 	List	   *plist;
 	bool		snapshot_set;
@@ -1006,7 +1007,8 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	plan->generation = ++(plansource->generation);
 
 	MemoryContextSwitchTo(oldcxt);
-
+	TimestampTz end = GetCurrentTimestamp();
+	printf("Build plan time: %ld micro seconds\n", end - start);
 	return plan;
 }
 
