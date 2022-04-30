@@ -1775,18 +1775,19 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 	{
 		if (CheckCachedPlan(plansource))
 		{
-			double main_cost = get_mean_cost(plansource, true);
-			double backup_cost = get_mean_cost(plansource, false);
-
-			printf("plancache.c: Main cost: %f, backup cost: %f\n", main_cost, backup_cost);
 			/* We want a generic plan, and we already have a valid one */
 
-			if (backup_cost != (double)-1 && main_cost > backup_cost) {
-				printf("Switch!\n");
-				ListCell* lc;
-				foreach (lc, plansource->gplan->stmt_list) {
-					PlannedStmt* stmt = lfirst_node(PlannedStmt, lc);
-					switch_plan_tree(stmt, plansource);
+			if (plansource->num_main_execution >= 5) {
+				double main_cost = get_mean_cost(plansource, true);
+				double backup_cost = get_mean_cost(plansource, false);
+				printf("plancache.c: Main cost: %f, backup cost: %f\n", main_cost, backup_cost);
+				if (backup_cost != (double)-1 && main_cost > backup_cost) {
+					printf("Switch!\n");
+					ListCell* lc;
+					foreach (lc, plansource->gplan->stmt_list) {
+						PlannedStmt* stmt = lfirst_node(PlannedStmt, lc);
+						switch_plan_tree(stmt, plansource);
+					}
 				}
 			}
 
