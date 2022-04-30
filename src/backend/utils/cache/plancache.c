@@ -1520,6 +1520,8 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	foreach(l, plist) {
 		PlannedStmt* stmt = lfirst_node(PlannedStmt, l);
 		printf("plancache.c: The type of the node is: %d\n", nodeTag(stmt));
+		stmt->has_index = false;
+		stmt->state = 0;
 		Plan* planTree = stmt->planTree;
 		PrintTree(planTree);
 		SetBackNodeToNull(planTree);
@@ -2598,9 +2600,21 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					params = lappend(params, info);
 					params = lappend_oid(params, relid);
 					params = lappend(params, plan->relationOids);
+					// TODO:
+					// If plan has_index: continue
+					// Else: do creation
 
-					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_sort_replacement, params);
-					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params);
+					// TODO: For callback: Set plan.has_index if create a new plan
+					if (!plan->has_index) {
+						plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_sort_replacement, params, plan);
+					}
+
+					if (!plan->has_index) {
+						plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params, plan);
+					}
+					
+					// Check whether plan.has_index is set to true
+					// If yes, update state to 1. Switch running time and set main to 0. 
 				}
 
 				index_close(myindex, NoLock);
@@ -2619,7 +2633,17 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					List *params = NIL;
 					params = lappend_oid(params, indexoid);
 
-					plan->planTree = PostOrderPlantreeTraverse(plan->planTree, drop_index_trigger, params);
+					// If !has_index: continue
+					// Check state: if state == 0: switch()
+					// Call post order to delete:
+					//     For each node: Check if indexoid == deleted_indexoid:
+					//
+
+					// post
+					plan->planTree = PostOrderPlantreeTraverse(plan->planTree, drop_index_trigger, params, plan);
+					// Set has_index to false
+					// If state == 1: switch running time
+					// Set backup running time to -1
 				}
 			}
 		}
@@ -2989,4 +3013,11 @@ make_indexonlyscan(List *qptlist,
 	node->indexorderdir = indexscandir;
 
 	return node;
+}
+
+static void switch_plan_tree(PlannedStmt* stmt) {
+	// switch():
+	//   pre-traversal. Swap (two assignments) current node and backup node if backup node is not NULL
+	//   switch running mean
+	//   Update state
 }
