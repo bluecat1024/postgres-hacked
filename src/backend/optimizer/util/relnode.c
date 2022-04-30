@@ -193,7 +193,7 @@ expand_planner_arrays(PlannerInfo *root, int add_size)
 RelOptInfo *
 build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 {
-	printf("relnode.c: build_simple_rel: relid: %d\n", relid);
+	// printf("relnode.c: build_simple_rel: relid: %d\n", relid);
 	RelOptInfo *rel;
 	RangeTblEntry *rte;
 

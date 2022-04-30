@@ -314,7 +314,7 @@ replace_outer_grouping(PlannerInfo *root, GroupingFunc *grp)
 Param *
 replace_nestloop_param_var(PlannerInfo *root, Var *var)
 {	
-	printf("paramassign.c: replace_nestloop_param_var()\n");
+	// printf("paramassign.c: replace_nestloop_param_var()\n");
 	Param	   *param;
 	NestLoopParam *nlp;
 	ListCell   *lc;

@@ -234,28 +234,28 @@ ExecuteQuery(ParseState *pstate,
 									   entry->plansource->query_string);
 
 	/* Replan if needed, and increment plan refcount for portal */
-	printf("prepare.c: Execute query, cachedPlanSource\n");
-	ListCell* l = NULL;
-	foreach(l, entry->plansource->relationOids) {
-		Oid relOid = lfirst_oid(l);
-		printf("Relation OID: %d\n", (int)relOid);
-		Relation relation = table_open(relOid, NoLock);
+	// printf("prepare.c: Execute query, cachedPlanSource\n");
+	// ListCell* l = NULL;
+	// foreach(l, entry->plansource->relationOids) {
+	// 	Oid relOid = lfirst_oid(l);
+	// 	printf("Relation OID: %d\n", (int)relOid);
+	// 	Relation relation = table_open(relOid, NoLock);
 		
-		if (relation->rd_rel->relhasindex) {
-			printf("Has index!\n");
-			List* indexoidlist = RelationGetIndexList(relation);
-			ListCell* l2;
-			if (indexoidlist != NIL) {
-				foreach(l2, indexoidlist) {
-					Oid relOid2 = lfirst_oid(l2);
-					printf("Index OID: %d\n", (int)relOid2);
-				}
-			}
-		}
-		table_close(relation, NoLock);
+	// 	if (relation->rd_rel->relhasindex) {
+	// 		printf("Has index!\n");
+	// 		List* indexoidlist = RelationGetIndexList(relation);
+	// 		ListCell* l2;
+	// 		if (indexoidlist != NIL) {
+	// 			foreach(l2, indexoidlist) {
+	// 				Oid relOid2 = lfirst_oid(l2);
+	// 				printf("Index OID: %d\n", (int)relOid2);
+	// 			}
+	// 		}
+	// 	}
+	// 	table_close(relation, NoLock);
 
 
-	}
+	// }
 	cplan = GetCachedPlan(entry->plansource, paramLI, NULL, NULL);
 	plan_list = cplan->stmt_list;
 
@@ -324,7 +324,7 @@ ExecuteQuery(ParseState *pstate,
 	
 	entry->plansource->num_main_execution++;
 	entry->plansource->total_main_cost += (end_time - start_time);
-	printf("prepare.c: Time added. Now the num of execution is: %ld, the total cost is: %f\n", entry->plansource->num_main_execution, entry->plansource->total_main_cost);
+	// printf("prepare.c: Time added. Now the num of execution is: %ld, the total cost is: %f\n", entry->plansource->num_main_execution, entry->plansource->total_main_cost);
 	PortalDrop(portal, false);
 
 	if (estate)

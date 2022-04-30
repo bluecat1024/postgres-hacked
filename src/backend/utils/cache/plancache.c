@@ -161,8 +161,6 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index
 	int			pos;
 	ListCell   *indexpr_item;
 
-	printf("createplan.c: fix_indexqual_operand_local, begin\n");
-
 	/*
 	 * Remove any binary-compatible relabeling of the indexkey
 	 */
@@ -174,7 +172,6 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index
 	if (index->indexkeys[indexcol] != 0)
 	{
 		/* It's a simple index column */
-		printf("plancache.c: 4 nums: %d, %d, %d, %d\n", (int)((Var *) node)->varno, (int)tablerelid, (int)((Var *) node)->varattno, (int)index->indexkeys[indexcol]);
 		if (IsA(node, Var) &&
 			((Var *) node)->varno == tablerelid &&
 			((Var *) node)->varattno == index->indexkeys[indexcol])
@@ -182,12 +179,10 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index
 			result = (Var *) copyObject(node);
 			result->varno = INDEX_VAR;
 			result->varattno = indexcol + 1;
-			printf("createplan.c: fix_indexqual_operand_local, simple column, finish\n");
 			return (Node *) result;
 		}
 		else {
 			elog(ERROR, "index key does not match expected index column");
-			printf("createplan.c: index key does not match expected index column\n");
 		}
 	}
 
@@ -213,12 +208,10 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index
 									 exprCollation(lfirst(indexpr_item)),
 									 0);
 
-					printf("createplan.c: fix_indexqual_operand_local, index expression, finish\n");
 					return (Node *) result;
 				}
 				else {
 					elog(ERROR, "index key does not match expected index column");
-					printf("createplan.c: index key does not match expected index column");
 				}
 			}
 			indexpr_item = lnext(index->indexprs, indexpr_item);
@@ -227,7 +220,6 @@ fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index
 
 	/* Oops... */
 	elog(ERROR, "index key does not match expected index column");
-	printf("createplan.c: index key does not match expected index column\n");
 	return NULL;				/* keep compiler quiet */
 }
 
@@ -243,7 +235,7 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 	 * in-place below.
 	 */
 
-	printf("createplan.c: fix_indexqual_clause_local, table id %d\n", (int)tablerelid);
+	// printf("createplan.c: fix_indexqual_clause_local, table id %d\n", (int)tablerelid);
 
 	if (IsA(clause, OpExpr))
 	{
@@ -298,11 +290,11 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 	else {
 		elog(ERROR, "unsupported indexqual type: %d",
 			 (int) nodeTag(clause));
-		printf("createplan.c: fix_indexqual_clause_local, error\n");
+		// printf("createplan.c: fix_indexqual_clause_local, error\n");
 	}
 
 			 
-	printf("createplan.c: fix_indexqual_clause_local, finish\n");
+	// printf("createplan.c: fix_indexqual_clause_local, finish\n");
 	return clause;
 }
 
@@ -336,7 +328,7 @@ static int clause_matches_index(Node *clause, IndexOptInfo *info) {
 
 	if (IsA(clause, OpExpr)) {
 		OpExpr *op = (OpExpr *)clause;
-		printf("plancache.c: clause_matches_index, op len %d\n", list_length(op->args));
+		// printf("plancache.c: clause_matches_index, op len %d\n", list_length(op->args));
 		if (list_length(op->args) == 2) {
 			Node *leftop = (Node *) linitial(op->args);
 			Node *rightop = (Node *) lsecond(op->args);
@@ -346,7 +338,7 @@ static int clause_matches_index(Node *clause, IndexOptInfo *info) {
 			for (idx = 0; idx < info->nkeycolumns; idx++) {
 				opfamily = info->opfamily[idx];
 				idxcollation = info->indexcollations[idx];
-				printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
+				// printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && op_in_opfamily(expr_op, opfamily)) {
 					return idx;
@@ -360,7 +352,7 @@ static int clause_matches_index(Node *clause, IndexOptInfo *info) {
 			}
 		}
 	} else if (IsA(clause, RowCompareExpr)) {
-		printf("plancache.c: clause_matches_index, row compare\n");
+		// printf("plancache.c: clause_matches_index, row compare\n");
 		if (info->relam == BTREE_AM_OID) {
 			RowCompareExpr *rc = (RowCompareExpr *)clause;
 			Node *leftop = (Node *) linitial(rc->largs);
@@ -371,7 +363,7 @@ static int clause_matches_index(Node *clause, IndexOptInfo *info) {
 				bool exprMatch = false;
 				opfamily = info->opfamily[idx];
 				idxcollation = info->indexcollations[idx];
-				printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
+				// printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
 
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
@@ -434,14 +426,14 @@ static Plan *create_index_trigger(Plan *node, List *params, PlannedStmt* stmt) {
 	if (nodeTag(node) != T_SeqScan) {
 		return node;
 	}
-	printf("Create index trigger called\n");
+	// printf("Create index trigger called\n");
 	Scan *scannode = (Scan *)node;
 	IndexOptInfo *index = lfirst_node(IndexOptInfo, list_nth_cell(params, 0));
 	Oid reloid = list_nth_cell(params, 1)->oid_value;
 	List *relOidList = lfirst_node(List, list_nth_cell(params, 2));
 
 	if (reloid != list_nth_cell(relOidList, scannode->scanrelid - 1)->oid_value) {
-		printf("plancache.c: relation not match, %d, %d\n", reloid, list_nth_cell(relOidList, scannode->scanrelid)->oid_value);
+		// printf("plancache.c: relation not match, %d, %d\n", reloid, list_nth_cell(relOidList, scannode->scanrelid)->oid_value);
 		return node;
 	}
 
@@ -450,9 +442,9 @@ static Plan *create_index_trigger(Plan *node, List *params, PlannedStmt* stmt) {
 		SeqScan *seqPlanNode = (SeqScan *)(node);
 		IndexScan *indexPlanNode;
 		Oid indexoid = index->indexoid;
-		printf("Table Oid: %d Index Oid: %d\n", (int)reloid, (int)indexoid);
+		// printf("Table Oid: %d Index Oid: %d\n", (int)reloid, (int)indexoid);
 
-		printf("plancache.c: Replacing SeqScan\n");
+		// printf("plancache.c: Replacing SeqScan\n");
 		// replace the plan info.
 
 		// separate index qual and other qual.
@@ -473,15 +465,15 @@ static Plan *create_index_trigger(Plan *node, List *params, PlannedStmt* stmt) {
 				}
 				indexquals = list_insert_nth(indexquals, innerIdx, clause);
 				indexcolnos = list_insert_nth_int(indexcolnos, innerIdx, matchColno);
-				printf("plancache.c: Add index qual\n");
+				// printf("plancache.c: Add index qual\n");
 			} else {
 				seqquals = lappend(seqquals, clause);
-				printf("plancache.c: Add seq qual\n");
+				// printf("plancache.c: Add seq qual\n");
 			}
 		}
 
 		if (indexquals == NIL) {
-			printf("plancache.c: Not a match for index columns\n");
+			// printf("plancache.c: Not a match for index columns\n");
 			return node;
 		}
 
@@ -497,7 +489,7 @@ static Plan *create_index_trigger(Plan *node, List *params, PlannedStmt* stmt) {
 			indexquals,
 			NIL, NIL, NIL, 0
 		);
-		printf("plancache.c: Replaced to IndexScan\n");
+		// printf("plancache.c: Replaced to IndexScan\n");
 
 		// add seqscan to backup node.
 		indexPlanNode->scan.plan.backupNode = seqPlanNode;
@@ -532,7 +524,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt
 		return node;
 	}
 
-	printf("plancache.c: Start sort+seq -> index\n");
+	// printf("plancache.c: Start sort+seq -> index\n");
 
 	// Check if all attributes for sort exist in the index column
 	bool allExist = true;
@@ -552,7 +544,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt
 		}
 	}
 
-	printf("plancache.c: All attributes in index columns? %d\n", allExist);
+	// printf("plancache.c: All attributes in index columns? %d\n", allExist);
 
 	if (allExist) {
 		// Check order
@@ -569,7 +561,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt
 				break;
 			}
 		}
-		printf("plancache.c: Sort order increasing? %d\n", increasing);
+		// printf("plancache.c: Sort order increasing? %d\n", increasing);
 		info->rel->relid = scanNode->scanrelid;
 		List *indexquals = NIL;
 		List *seqquals = NIL;
@@ -588,10 +580,10 @@ static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt
 				}
 				indexquals = list_insert_nth(indexquals, innerIdx, clause);
 				indexcolnos = list_insert_nth_int(indexcolnos, innerIdx, matchColno);
-				printf("plancache.c: Add index qual\n");
+				// printf("plancache.c: Add index qual\n");
 			} else {
 				seqquals = lappend(seqquals, clause);
-				printf("plancache.c: Add seq qual\n");
+				// printf("plancache.c: Add seq qual\n");
 			}
 		}
 
@@ -615,7 +607,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt
 		);
 		newNode->backupNode = node;
 		stmt->has_index = true;
-		printf("plancache.c: sort+seq->index finishes\n");
+		// printf("plancache.c: sort+seq->index finishes\n");
 		return newNode;
 	}
 
@@ -654,13 +646,13 @@ static Plan *drop_index_trigger(Plan *node, List *params, PlannedStmt *stmt) {
 	stmt->has_index = false;
 
 	if (anotherNode != NULL) {
-		printf("Drop index trigger: not null\n");
+		// printf("Drop index trigger: not null\n");
 		fflush(stdout);
 		Plan* originalNode = anotherNode;
 		recursive_delete(node);
 		return originalNode;
 	} else {
-		printf("This branch should be NEVER CALLED!!!!!\n\n\n");
+		// printf("This branch should be NEVER CALLED!!!!!\n\n\n");
 		List *quals = NIL;
 		ListCell *lc;
 		foreach(lc, indexPlanNode->indexqualorig) {
@@ -1434,13 +1426,13 @@ CheckCachedPlan(CachedPlanSource *plansource)
 
 static void PrintTree(Plan* root) {
 	if (root != NULL) {
-		printf("Type of node: %d\n", nodeTag(root));
+		// printf("Type of node: %d\n", nodeTag(root));
 		if (root->lefttree) {
-			printf("Left tree:\n");
+			// printf("Left tree:\n");
 			PrintTree(root->lefttree);
 		}
 		if (root->righttree) {
-			printf("Right tree:\n");
+			// printf("Right tree:\n");
 			PrintTree(root->righttree);
 		}
 	}
@@ -1478,7 +1470,7 @@ static CachedPlan *
 BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 				ParamListInfo boundParams, QueryEnvironment *queryEnv)
 {
-	printf("plancache.c: BuildCachedPlan\n");
+	// printf("plancache.c: BuildCachedPlan\n");
 	CachedPlan *plan;
 	List	   *plist;
 	bool		snapshot_set;
@@ -1538,8 +1530,8 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	ListCell* l;
 	foreach(l, plist) {
 		PlannedStmt* stmt = lfirst_node(PlannedStmt, l);
-		printf("plancache.c: The type of the node is: %d\n", nodeTag(stmt));
-		printf("plancache.c: Set has_index to false\n");
+		// printf("plancache.c: The type of the node is: %d\n", nodeTag(stmt));
+		// printf("plancache.c: Set has_index to false\n");
 		stmt->has_index = false;
 		stmt->state = 0;
 		Plan* planTree = stmt->planTree;
@@ -2573,9 +2565,9 @@ PlanCacheComputeResultDesc(List *stmt_list)
 static void
 PlanCacheRelCallback(Datum arg, Oid relid)
 {
-	printf("plancache.c: PlanCacheRelCallback() begin, %d\n", (int)relid);
+	// printf("plancache.c: PlanCacheRelCallback() begin, %d\n", (int)relid);
 	AdaptiveIndexMsg *msg = (AdaptiveIndexMsg *)arg;
-	printf("plancache.c: PlanCacheRelCallback() begin, index op %d %d\n", (int)msg->indexop, (int)msg->indexoid);
+	// printf("plancache.c: PlanCacheRelCallback() begin, index op %d %d\n", (int)msg->indexop, (int)msg->indexoid);
 	dlist_iter	iter;
 
 	dlist_foreach(iter, &saved_plan_list)
@@ -2600,7 +2592,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				info->rel = relinfo;
 				info->ncolumns = myindex->rd_index->indnatts;
 				info->nkeycolumns = myindex->rd_index->indnkeyatts;
-				printf("Index Col Number %d\n", info->ncolumns);
+				// printf("Index Col Number %d\n", info->ncolumns);
 				info->indexkeys = (int *) palloc(sizeof(int) * info->ncolumns);
 				info->indexcollations = (Oid *) palloc(sizeof(Oid) * info->nkeycolumns);
 				info->opfamily = (Oid *) palloc(sizeof(Oid) * info->nkeycolumns);
@@ -2611,7 +2603,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				for (i = 0; i < info->ncolumns; i++)
 				{
 					info->indexkeys[i] = myindex->rd_index->indkey.values[i];
-					printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
+					// printf("Index Col %d Mapping %d\n", i, info->indexkeys[i]);
 				}
 				for (i = 0; i < info->nkeycolumns; i++)
 				{
@@ -2619,11 +2611,11 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					info->indexcollations[i] = myindex->rd_indcollation[i];
 				}
 
-				printf("plancache.c: Getting index expressions\n");
+				// printf("plancache.c: Getting index expressions\n");
 				info->indexprs = RelationGetIndexExpressions(myindex);
 				if (info->indexprs && relid != 1)
 					ChangeVarNodes((Node *) info->indexprs, 1, relid, 0);
-				printf("plancache.c: Got index expressions\n");
+				// printf("plancache.c: Got index expressions\n");
 
 				foreach(lc, plansource->gplan->stmt_list) {
 					PlannedStmt *plan = lfirst_node(PlannedStmt, lc);
@@ -2640,7 +2632,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 
 					// TODO: For callback: Set plan.has_index if create a new plan
 					if (plan->has_index) {
-						printf("Already has index. Do not add plan\n");
+						// printf("Already has index. Do not add plan\n");
 						continue;
 					}
 						
@@ -3079,7 +3071,7 @@ static Plan* switch_tree_internal(Plan* plan) {
 
 	plan->lefttree = switch_tree_internal(plan->lefttree);
 	plan->righttree = switch_tree_internal(plan->righttree);
-	printf("Node type is: %d\n", nodeTag(plan));
+	// printf("Node type is: %d\n", nodeTag(plan));
 	return plan;
 }
 
@@ -3127,10 +3119,7 @@ static void switch_plan_tree(PlannedStmt* stmt, CachedPlanSource *plansource) {
 	//   switch running mean
 	//   Update state
 	if (!stmt->has_index) {
-		printf("Stmt do not have index! Cannot switch!\n\n\n");
 		return;
-	} else {
-		printf("plancache.c: The statement has index!\n");
 	}
 	
 	switch_running_time(plansource);

@@ -114,7 +114,7 @@ void
 get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 				  RelOptInfo *rel)
 {
-	printf("plancat.c: get_relation_info: relationObjectId: %d\n", relationObjectId);
+	// printf("plancat.c: get_relation_info: relationObjectId: %d\n", relationObjectId);
 	Index		varno = rel->relid;
 	Relation	relation;
 	bool		hasindex;
@@ -186,7 +186,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 		foreach(l, indexoidlist)
 		{
 			Oid			indexoid = lfirst_oid(l);
-			printf("Index Oid: %d\n", (int)indexoid);
+			// printf("Index Oid: %d\n", (int)indexoid);
 			Relation	indexRelation;
 			Form_pg_index index;
 			IndexAmRoutine *amroutine;
