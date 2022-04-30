@@ -158,6 +158,9 @@ typedef struct Plan
 	 */
 	Bitmapset  *extParam;
 	Bitmapset  *allParam;
+
+	/* Backup for query regression stitch */
+	struct Plan *backupNode;
 } Plan;
 
 /* ----------------
