@@ -915,7 +915,7 @@ List *
 pg_plan_queries(List *querytrees, const char *query_string, int cursorOptions,
 				ParamListInfo boundParams)
 {
-	printf("postgres.c: pg_plan_queries: %s\n", query_string);
+	// printf("postgres.c: pg_plan_queries: %s\n", query_string);
 	List	   *stmt_list = NIL;
 	ListCell   *query_list;
 

@@ -647,7 +647,7 @@ static Plan *drop_index_trigger(Plan *node, List *params, PlannedStmt *stmt) {
 
 	if (anotherNode != NULL) {
 		// printf("Drop index trigger: not null\n");
-		fflush(stdout);
+		// fflush(stdout);
 		Plan* originalNode = anotherNode;
 		recursive_delete(node);
 		return originalNode;
@@ -1772,9 +1772,9 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 			if (plansource->num_main_execution >= 5) {
 				double main_cost = get_mean_cost(plansource, true);
 				double backup_cost = get_mean_cost(plansource, false);
-				printf("plancache.c: Main cost: %f, backup cost: %f\n", main_cost, backup_cost);
+				// printf("plancache.c: Main cost: %f, backup cost: %f\n", main_cost, backup_cost);
 				if (backup_cost != (double)-1 && main_cost > backup_cost) {
-					printf("Switch!\n");
+					// printf("Switch!\n");
 					ListCell* lc;
 					foreach (lc, plansource->gplan->stmt_list) {
 						PlannedStmt* stmt = lfirst_node(PlannedStmt, lc);
@@ -2697,7 +2697,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 			}
 			if (changeHappen) {
 				TimestampTz end = GetCurrentTimestamp();
-				printf("plancache.c: Node substitution overhead: %f ms\n", (double)(end - begin) / 1000);
+				printf("Substitution overhead: %d micro seconds\n", (end - begin));
 			}
 
 		}
@@ -3128,6 +3128,7 @@ static void switch_plan_tree(PlannedStmt* stmt, CachedPlanSource *plansource) {
 	//   pre-traversal. Swap (two assignments) current node and backup node if backup node is not NULL
 	//   switch running mean
 	//   Update state
+	TimestampTz begin = GetCurrentTimestamp();
 	if (!stmt->has_index) {
 		return;
 	}
@@ -3137,4 +3138,7 @@ static void switch_plan_tree(PlannedStmt* stmt, CachedPlanSource *plansource) {
 	stmt->planTree = switch_tree_internal(stmt->planTree);
 
 	stmt->state = (stmt->state + 1) % 2;
+
+	TimestampTz end = GetCurrentTimestamp();
+	printf("Switching overhead: %d micro second\n", end - begin);
 }
