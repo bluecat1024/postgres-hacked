@@ -321,9 +321,10 @@ ExecuteQuery(ParseState *pstate,
 	(void) PortalRun(portal, count, false, true, dest, dest, qc);
 	TimestampTz end_time = GetCurrentTimestamp();
 
+	
 	entry->plansource->num_main_execution++;
 	entry->plansource->total_main_cost += (end_time - start_time);
-
+	printf("prepare.c: Time added. Now the num of execution is: %ld, the total cost is: %f\n", entry->plansource->num_main_execution, entry->plansource->total_main_cost);
 	PortalDrop(portal, false);
 
 	if (estate)

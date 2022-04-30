@@ -1777,6 +1777,8 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 		{
 			double main_cost = get_mean_cost(plansource, true);
 			double backup_cost = get_mean_cost(plansource, false);
+
+			printf("plancache.c: Main cost: %f, backup cost: %f\n", main_cost, backup_cost);
 			/* We want a generic plan, and we already have a valid one */
 
 			if (backup_cost != (double)-1 && main_cost > backup_cost) {
@@ -3087,7 +3089,7 @@ static void switch_running_time(CachedPlanSource *plansource) {
 	plansource->total_backup_cost = tmp_cost;
 
 	int64 tmp_num = plansource->num_main_execution;
-	plansource->num_backup_execution;
+	plansource->num_backup_execution = plansource->num_main_execution;
 	plansource->num_main_execution = tmp_num;
 }
 
