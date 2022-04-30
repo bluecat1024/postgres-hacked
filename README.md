@@ -31,7 +31,7 @@ Environment setup: (for details, refer to: https://www.postgresql.org/docs/curre
 ```bash
 sudo apt update
 sudo apt upgrade
-sudo install gcc make libreadline8 libreadline-dev zlib1g zlib1g-dev build-essential bison postgresql-client llvm clang flex
+sudo apt install gcc make libreadline8 libreadline-dev zlib1g zlib1g-dev build-essential bison postgresql-client llvm clang flex
 ```
 3. Clone the repository and use the master branch (it is the REL\_14\_STABLE for the postgres original repo).
 4. Build and install postgres
@@ -72,7 +72,7 @@ set jit_above_cost=5;
 set jit_inline_above_cost=10;
 set jit_optimize_above_cost=10;
 show jit;
-show jit_above cost;
+show jit_above_cost;
 ```
 
 To see the JIT explain:

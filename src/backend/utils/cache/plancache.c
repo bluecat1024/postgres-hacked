@@ -2217,6 +2217,8 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					Sort* sortNode = (Sort*) plan->planTree;
 					if (scanNode->type == T_SeqScan) {
 						printf("plancache.c: Start sort+seq -> index\n");
+						printf("seqscan cost start: %f, total: %f \n", scanNode->startup_cost, scanNode->total_cost);
+						printf("sort cost start: %f, total: %f \n", sortNode->plan.startup_cost, sortNode->plan.total_cost);
 						// Copy from index node creation
 						Relation relation = table_open(relid, NoLock);
 
@@ -2360,6 +2362,9 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 
 					plan->relationOids = list_append_unique_oid(plan->relationOids, indexoid);
 					SeqScan *seqPlanNode = (SeqScan *)(plan->planTree);
+
+					printf("seqscan cost start: %f, total: %f \n", seqPlanNode->plan.startup_cost, seqPlanNode->plan.total_cost);
+
 					plan->planTree = (Plan *)make_indexscan(
 						seqPlanNode->plan.targetlist,
 						// seqPlanNode->plan.qual,
