@@ -2579,6 +2579,8 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 		Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 
 		if (plansource->gplan && plansource->gplan->is_valid && list_member_oid(plansource->relationOids, relid)) {
+			TimestampTz begin = GetCurrentTimestamp();
+			bool changeHappen = false;
 			MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
 			Oid indexoid = msg->indexoid;
 
@@ -2649,6 +2651,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 						plan->state = 1;
 						switch_running_time(plansource);
 						set_running_cost(plansource, true);
+						changeHappen = true;
 					}
 				}
 
@@ -2687,9 +2690,15 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 						// TODO: Set backup running time to -1
 						plan->state = 0;
 						set_running_cost(plansource, false);
+						changeHappen = true;
 					}
 				}
 			}
+			if (changeHappen) {
+				TimestampTz end = GetCurrentTimestamp();
+				printf("plancache.c: Node substitution overhead: %f ms\n", (double)(end - begin) / 1000);
+			}
+
 		}
 
 		/* Do not need to further invalidate if is adaptive to index. */
