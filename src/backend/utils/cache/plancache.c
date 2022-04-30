@@ -513,6 +513,10 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 	Oid reloid = list_nth_cell(params, 1)->oid_value;
 	List *relOidList = lfirst_node(List, list_nth_cell(params, 2));
 
+	if (info->relam != BTREE_AM_OID) {
+		return node;
+	}
+
 	if (reloid != list_nth_cell(relOidList, scanNode->scanrelid - 1)->oid_value) {
 		return node;
 	}
@@ -570,6 +574,10 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 			}
 		}
 
+		if (indexquals == NIL) {
+			return node;
+		}
+
 		Oid indexoid = info->indexoid;
 
 		Plan* newNode = (Plan *)make_indexscan(
@@ -602,21 +610,38 @@ static void recursive_delete(Plan* node) {
 }
 
 static Plan *drop_index_trigger(Plan *node, List *params) {
+	Oid indexoid = list_nth_cell(params, 0)->oid_value;
+	if (nodeTag(node) != T_IndexScan) {
+		return node;
+	}
+
+	IndexScan *indexPlanNode = (IndexScan *)node;
+	if (indexPlanNode->indexid != indexoid) {
+		return node;
+	}
+
 	if (node->backupNode != NULL) {
 		printf("Drop index trigger: not null\n");
 		fflush(stdout);
-		Scan* scanNode = (Scan*) node;
-		Oid reloid = list_nth_cell(params, 0)->oid_value;
-		List *relOidList = lfirst_node(List, list_nth_cell(params, 1));
-		if (reloid != list_nth_cell(relOidList, scanNode->scanrelid - 1)->oid_value) {
-			return node;
-		}
 		Plan* originalNode = node->backupNode;
 		recursive_delete(node);
 		return originalNode;
-	}
+	} else {
+		List *quals = NIL;
+		ListCell *lc;
+		foreach(lc, indexPlanNode->indexqualorig) {
+			quals = lappend(quals, lc);
+		}
+		foreach(lc, indexPlanNode->scan.plan.qual) {
+			quals = lappend(quals, lc);
+		}
 
-	return node;
+		SeqScan *seqPlanNode = make_seqscan(indexPlanNode->scan.plan.targetlist,
+			quals, indexPlanNode->scan.scanrelid);
+
+		recursive_delete(node);
+		return seqPlanNode;
+	}
 }
 
 /* GUC parameter */
@@ -2577,8 +2602,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 						continue;
 					}
 					List *params = NIL;
-					params = lappend_oid(params, relid);
-					params = lappend(params, plan->relationOids);
+					params = lappend_oid(params, indexoid);
 
 					plan->planTree = PostOrderPlantreeTraverse(plan->planTree, drop_index_trigger, params);
 				}
