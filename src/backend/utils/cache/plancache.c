@@ -147,7 +147,7 @@ make_indexonlyscan(List *qptlist,
 				   ScanDirection indexscandir);
 
 static List *fix_indexquals_local(IndexOptInfo *index,
-	List *quals, Oid tablerelid);
+	List *quals, Oid tablerelid, List *matchColnos);
 
 static Node *
 fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index tablerelid)
@@ -302,14 +302,16 @@ fix_indexqual_clause_local(IndexOptInfo *index, int indexcol,
 }
 
 static List *fix_indexquals_local(IndexOptInfo *index,
-	List *quals, Index tablerelid) {
+	List *quals, Index tablerelid, List *matchColnos) {
 	List *fix_quals = NIL;
-	int indexcol = 0;
-	List *indexcolnos = list_make1_int(0);
-	ListCell *lc;
+	int indexcol;
+	List *indexcolnos;
+	ListCell *lc, *lcCol;
 
-	foreach(lc, quals) {
+	forboth(lc, quals, lcCol, matchColnos) {
 		Node *clause = lfirst_node(Node, lc);
+		indexcol = lfirst_int(lcCol);
+		indexcolnos = list_make1(indexcol);
 		fix_quals = lappend(fix_quals, fix_indexqual_clause_local(index,
 			indexcol, clause, indexcolnos, tablerelid));
 	}
@@ -320,9 +322,8 @@ static List *fix_indexquals_local(IndexOptInfo *index,
 #define IndexCollMatchesExprColl(idxcollation, exprcollation) \
 	((idxcollation) == InvalidOid || (idxcollation) == (exprcollation))
 
-static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
+static int clause_matches_index(Node *clause, IndexOptInfo *info) {
 	int idx;
-	bool isMatch = false;
 	Oid	opfamily;
 	Oid	expr_op;
 	Oid	expr_coll;
@@ -343,15 +344,13 @@ static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 				printf("plancache.c: clause_matches_index, %d %d %d %d\n", idxcollation, expr_coll, expr_op, opfamily);
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && op_in_opfamily(expr_op, opfamily)) {
-					isMatch = true;
-					break;
+					return idx;
 				}
 				comm_op = get_commutator(expr_op);
 				if (match_index_to_operand(rightop, idx, info) && !contain_volatile_functions(leftop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && OidIsValid(comm_op)
 					&& op_in_opfamily(comm_op, opfamily)) {
-					isMatch = true;
-					break;
+					return idx;
 				}
 			}
 		}
@@ -372,12 +371,12 @@ static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
 					exprMatch = true;
-				}
-
-				expr_op = get_commutator(expr_op);
-				if (match_index_to_operand(rightop, idx, info) && !contain_volatile_functions(leftop)
-					&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
-					exprMatch = true;
+				} else {
+					expr_op = get_commutator(expr_op);
+					if (match_index_to_operand(rightop, idx, info) && !contain_volatile_functions(leftop)
+						&& IndexCollMatchesExprColl(idxcollation, expr_coll)) {
+						exprMatch = true;
+					}
 				}
 
 				if (exprMatch && OidIsValid(expr_op)) {
@@ -387,13 +386,9 @@ static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 						case BTLessEqualStrategyNumber:
 						case BTGreaterEqualStrategyNumber:
 						case BTGreaterStrategyNumber:
-							isMatch = true;
+							return idx;
 							break;
 					}
-				}
-
-				if (isMatch) {
-					break;
 				}
 			}
 		}
@@ -412,8 +407,7 @@ static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 				idxcollation = info->indexcollations[idx];
 				if (match_index_to_operand(leftop, idx, info) && !contain_volatile_functions(rightop)
 					&& IndexCollMatchesExprColl(idxcollation, expr_coll) && op_in_opfamily(expr_op, opfamily)) {
-					isMatch = true;
-					break;
+					return idx;
 				}
 			}
 		}
@@ -423,13 +417,12 @@ static bool clause_matches_index(Node *clause, IndexOptInfo *info) {
 		for (idx = 0; idx < info->nkeycolumns; idx++) {
 			if (!nt->argisrow &&
 				match_index_to_operand((Node *) nt->arg, idx, info)) {
-				isMatch = true;
-				break;
+				return idx;
 			}
 		}
 	}
 
-	return isMatch;
+	return -1;
 }
 
 static Plan *create_index_trigger(Plan *node, List *params) {
@@ -460,11 +453,21 @@ static Plan *create_index_trigger(Plan *node, List *params) {
 		// separate index qual and other qual.
 		List *indexquals = NIL;
 		List *seqquals = NIL;
+		List *indexcolnos = NIL;
 		ListCell *quallc;
 		foreach(quallc, seqPlanNode->plan.qual) {
 			Node *clause = lfirst_node(Node, quallc);
-			if (clause_matches_index(clause, index)) {
-				indexquals = lappend(indexquals, clause);
+			int matchColno = clause_matches_index(clause, index);
+			if (matchColno >= 0) {
+				int innerIdx = 0;
+				while (innerIdx < list_length(indexcolnos)) {
+					if (list_nth_int(indexcolnos, innerIdx) > matchColno) {
+						break;
+					}
+					innerIdx++;
+				}
+				indexquals = list_insert_nth(indexquals, innerIdx, clause);
+				indexcolnos = list_insert_nth_int(indexcolnos, innerIdx, matchColno);
 				printf("plancache.c: Add index qual\n");
 			} else {
 				seqquals = lappend(seqquals, clause);
@@ -484,7 +487,8 @@ static Plan *create_index_trigger(Plan *node, List *params) {
 			indexoid,
 			fix_indexquals_local(index,
 				indexquals,
-				seqPlanNode->scanrelid),
+				seqPlanNode->scanrelid,
+				indexcolnos),
 			indexquals,
 			NIL, NIL, NIL, 0
 		);
@@ -529,7 +533,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 	int j = 0;
 	for (i = 0; i < sortNode->numCols; i++) {
 		bool attrFound = false;
-		for (j = 0; j < info->ncolumns; j++) {
+		for (j = 0; j < info->nkeycolumns; j++) {
 			if ((int)sortNode->sortColIdx[i] == (int)info->indexkeys[j]) {
 				attrFound = true;
 				break;
@@ -562,11 +566,21 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 		info->rel->relid = scanNode->scanrelid;
 		List *indexquals = NIL;
 		List *seqquals = NIL;
+		List *indexcolnos = NIL;
 		ListCell *quallc;
 		foreach(quallc, seqPlanNode->plan.qual) {
 			Node *clause = lfirst_node(Node, quallc);
-			if (clause_matches_index(clause, info)) {
-				indexquals = lappend(indexquals, clause);
+			int matchColno = clause_matches_index(clause, index);
+			if (matchColno >= 0) {
+				int innerIdx = 0;
+				while (innerIdx < list_length(indexcolnos)) {
+					if (list_nth_int(indexcolnos, innerIdx) > matchColno) {
+						break;
+					}
+					innerIdx++;
+				}
+				indexquals = list_insert_nth(indexquals, innerIdx, clause);
+				indexcolnos = list_insert_nth_int(indexcolnos, innerIdx, matchColno);
 				printf("plancache.c: Add index qual\n");
 			} else {
 				seqquals = lappend(seqquals, clause);
@@ -587,7 +601,8 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 			indexoid,
 			fix_indexquals_local(info,
 				indexquals,
-				seqPlanNode->scanrelid),
+				seqPlanNode->scanrelid,
+				indexcolnos),
 			indexquals,
 			NIL, NIL, NIL, increasing ? 0 : -1
 		);
