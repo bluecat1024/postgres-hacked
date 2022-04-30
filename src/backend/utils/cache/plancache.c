@@ -497,6 +497,100 @@ static Plan *create_index_trigger(Plan *node, List *params) {
 	}
 }
 
+static Plan *create_index_sort_replacement(Plan *node, List *params) {
+	if (node->type != T_Sort) {
+		return node;
+	}
+	Sort* sortNode = (Sort*) node;
+	Scan* scanNode = (Scan*) node->lefttree;
+
+	if (nodeTag(scanNode) != T_SeqScan) {
+		return node;
+	}
+
+	SeqScan *seqPlanNode = (SeqScan *)(scanNode);
+	IndexOptInfo *info = lfirst_node(IndexOptInfo, list_nth_cell(params, 0));
+	Oid reloid = list_nth_cell(params, 1)->oid_value;
+	List *relOidList = lfirst_node(List, list_nth_cell(params, 2));
+
+	if (reloid != list_nth_cell(relOidList, scanNode->scanrelid - 1)->oid_value) {
+		return node;
+	}
+
+	printf("plancache.c: Start sort+seq -> index\n");
+
+	// Check if all attributes for sort exist in the index column
+	bool allExist = true;
+	int i = 0;
+	int j = 0;
+	for (i = 0; i < sortNode->numCols; i++) {
+		bool attrFound = false;
+		for (j = 0; j < info->ncolumns; j++) {
+			if ((int)sortNode->sortColIdx[i] == (int)info->indexkeys[j]) {
+				attrFound = true;
+				break;
+			}
+		}
+		if (!attrFound) {
+			allExist = false;
+			break;
+		}
+	}
+
+	printf("plancache.c: All attributes in index columns? %d\n", allExist);
+
+	if (allExist) {
+		// Check order
+		int numOfIncreasingOids = 51;
+		int increasingOrderOids[] = {37, 58, 95, 97, 255, 261, 5073, 2799, 412, 418, 534, 535, 609, 645, 622, 631,
+		660, 664, 672, 1095, 1552, 1122, 1132, 1322, 1332, 1502, 1587, 1222, 3364, 1203, 1754, 1786, 1806, 1864,
+		1957, 2062, 2345, 2358, 2371, 2384, 2534, 2540, 2974, 3224, 3518, 3627, 3674, 2990, 3884, 3242, 2862};
+
+		int i = 0;
+		bool increasing = false;
+		for (i = 0; i < numOfIncreasingOids; i++) {
+			if (sortNode->sortOperators[0] == increasingOrderOids[i]) {
+				increasing = true;
+				break;
+			}
+		}
+		printf("plancache.c: Sort order increasing? %d\n", increasing);
+		info->rel->relid = scanNode->scanrelid;
+		List *indexquals = NIL;
+		List *seqquals = NIL;
+		ListCell *quallc;
+		foreach(quallc, seqPlanNode->plan.qual) {
+			Node *clause = lfirst_node(Node, quallc);
+			if (clause_matches_index(clause, info)) {
+				indexquals = lappend(indexquals, clause);
+				printf("plancache.c: Add index qual\n");
+			} else {
+				seqquals = lappend(seqquals, clause);
+				printf("plancache.c: Add seq qual\n");
+			}
+		}
+
+		Oid indexoid = info->indexoid;
+
+		Plan* newNode = (Plan *)make_indexscan(
+			seqPlanNode->plan.targetlist,
+			seqquals,
+			seqPlanNode->scanrelid,
+			indexoid,
+			fix_indexquals_local(info,
+				indexquals,
+				seqPlanNode->scanrelid),
+			indexquals,
+			NIL, NIL, NIL, 0
+		);
+		newNode->backupNode = node;
+		printf("plancache.c: sort+seq->index finishes\n");
+		return newNode;
+	}
+
+	return node;
+}
+
 /* GUC parameter */
 int			plan_cache_mode;
 
@@ -2425,6 +2519,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					params = lappend_oid(params, relid);
 					params = lappend(params, plan->relationOids);
 
+					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_sort_replacement, params);
 					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params);
 				}
 
