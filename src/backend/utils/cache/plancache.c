@@ -591,6 +591,34 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 	return node;
 }
 
+static void recursive_delete(Plan* node) {
+	if (node->lefttree != NULL) {
+		recursive_delete(node->lefttree);
+	}
+	if (node->righttree != NULL) {
+		recursive_delete(node->righttree);
+	}
+	pfree(node);
+}
+
+static Plan *drop_index_trigger(Plan *node, List *params) {
+	if (node->backupNode != NULL) {
+		printf("Drop index trigger: not null\n");
+		fflush(stdout);
+		Scan* scanNode = (Scan*) node;
+		Oid reloid = list_nth_cell(params, 0)->oid_value;
+		List *relOidList = lfirst_node(List, list_nth_cell(params, 1));
+		if (reloid != list_nth_cell(relOidList, scanNode->scanrelid - 1)->oid_value) {
+			return node;
+		}
+		Plan* originalNode = node->backupNode;
+		recursive_delete(node);
+		return originalNode;
+	}
+
+	return node;
+}
+
 /* GUC parameter */
 int			plan_cache_mode;
 
@@ -1359,6 +1387,18 @@ static void PrintTree(Plan* root) {
 	}
 }
 
+static void SetBackNodeToNull(Plan* root) {
+	if (root != NULL) {
+		root->backupNode = NULL;
+		if (root->lefttree) {
+			SetBackNodeToNull(root->lefttree);
+		}
+		if (root->righttree) {
+			SetBackNodeToNull(root->righttree);
+		}
+	}
+}
+
 /*
  * BuildCachedPlan: construct a new CachedPlan from a CachedPlanSource.
  *
@@ -1442,7 +1482,7 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 		printf("plancache.c: The type of the node is: %d\n", nodeTag(stmt));
 		Plan* planTree = stmt->planTree;
 		PrintTree(planTree);
-
+		SetBackNodeToNull(planTree);
 	}
 	/* Release snapshot if we got one */
 	if (snapshot_set)
@@ -2531,7 +2571,17 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				pfree(info);
 				MemoryContextSwitchTo(oldCxt);
 			} else if (msg->indexop == INVAL_ARGV_INDEX_DROP) {
+				foreach(lc, plansource->gplan->stmt_list) {
+					PlannedStmt *plan = lfirst_node(PlannedStmt, lc);
+					if (!list_member_oid(plan->relationOids, relid)) {
+						continue;
+					}
+					List *params = NIL;
+					params = lappend_oid(params, relid);
+					params = lappend(params, plan->relationOids);
 
+					plan->planTree = PostOrderPlantreeTraverse(plan->planTree, drop_index_trigger, params);
+				}
 			}
 		}
 
