@@ -149,6 +149,8 @@ make_indexonlyscan(List *qptlist,
 static List *fix_indexquals_local(IndexOptInfo *index,
 	List *quals, Oid tablerelid, List *matchColnos);
 
+static void switch_plan_tree(PlannedStmt* stmt);
+
 static Node *
 fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index tablerelid)
 {
@@ -429,7 +431,7 @@ static Plan *create_index_trigger(Plan *node, List *params, PlannedStmt* stmt) {
 	if (nodeTag(node) != T_SeqScan) {
 		return node;
 	}
-
+	printf("Create index trigger called\n");
 	Scan *scannode = (Scan *)node;
 	IndexOptInfo *index = lfirst_node(IndexOptInfo, list_nth_cell(params, 0));
 	Oid reloid = list_nth_cell(params, 1)->oid_value;
@@ -572,7 +574,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt
 		ListCell *quallc;
 		foreach(quallc, seqPlanNode->plan.qual) {
 			Node *clause = lfirst_node(Node, quallc);
-			int matchColno = clause_matches_index(clause, index);
+			int matchColno = clause_matches_index(clause, info);
 			if (matchColno >= 0) {
 				int innerIdx = 0;
 				while (innerIdx < list_length(indexcolnos)) {
@@ -655,6 +657,7 @@ static Plan *drop_index_trigger(Plan *node, List *params, PlannedStmt *stmt) {
 		recursive_delete(node);
 		return originalNode;
 	} else {
+		printf("This branch should be NEVER CALLED!!!!!\n\n\n");
 		List *quals = NIL;
 		ListCell *lc;
 		foreach(lc, indexPlanNode->indexqualorig) {
@@ -1533,6 +1536,7 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	foreach(l, plist) {
 		PlannedStmt* stmt = lfirst_node(PlannedStmt, l);
 		printf("plancache.c: The type of the node is: %d\n", nodeTag(stmt));
+		printf("plancache.c: Set has_index to false\n");
 		stmt->has_index = false;
 		stmt->state = 0;
 		Plan* planTree = stmt->planTree;
@@ -1769,6 +1773,13 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 		if (CheckCachedPlan(plansource))
 		{
 			/* We want a generic plan, and we already have a valid one */
+			// printf("Switch!\n");
+			// ListCell* lc;
+			// foreach (lc, plansource->gplan->stmt_list) {
+			// 	PlannedStmt* stmt = lfirst_node(PlannedStmt, lc);
+			// 	switch_plan_tree(stmt);
+			// }
+			
 			plan = plansource->gplan;
 			Assert(plan->magic == CACHEDPLAN_MAGIC);
 		}
@@ -2619,16 +2630,22 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 
 					// TODO: For callback: Set plan.has_index if create a new plan
 					if (plan->has_index) {
+						printf("Already has index. Do not add plan\n");
 						continue;
 					}
 						
 					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_sort_replacement, params, plan);
-					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params, plan);
+					if (!plan->has_index) {
+						plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params, plan);
+					}
+					
 					
 					// Check whether plan.has_index is set to true
 					// If yes, update state to 1. Switch running time and set main to 0. 
 					if (plan->has_index) {
-						// update state to 1. Switch running time and set main to 0. 
+						// TODO: update state to 1. Switch running time and set main to 0. 
+						plan->state = 1;
+
 					}
 				}
 
@@ -2653,6 +2670,10 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 						continue;
 					}
 
+					if (plan->state == 0) {
+						switch_plan_tree(plan);
+					}
+
 					// postorder delete
 					plan->planTree = PostOrderPlantreeTraverse(plan->planTree, drop_index_trigger, params, plan);
 					// Set has_index to false
@@ -2660,7 +2681,8 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					// Set backup running time to -1
 					if (!plan->has_index) {
 						// If state == 1: switch running time
-						// Set backup running time to -1
+						// TODO: Set backup running time to -1
+						plan->state = 0;
 					}
 				}
 			}
@@ -3033,9 +3055,34 @@ make_indexonlyscan(List *qptlist,
 	return node;
 }
 
+static Plan* switch_tree_internal(Plan* plan) {
+	if (plan == NULL) {
+		return NULL;
+	}
+
+	if (plan->backupNode != NULL) {
+		plan->backupNode->backupNode = plan;
+		plan = plan->backupNode;
+	}
+
+	plan->lefttree = switch_tree_internal(plan->lefttree);
+	plan->righttree = switch_tree_internal(plan->righttree);
+	printf("Node type is: %d\n", nodeTag(plan));
+	return plan;
+}
+
 static void switch_plan_tree(PlannedStmt* stmt) {
 	// switch():
 	//   pre-traversal. Swap (two assignments) current node and backup node if backup node is not NULL
 	//   switch running mean
 	//   Update state
+	if (!stmt->has_index) {
+		printf("Stmt do not have index! Cannot switch!\n\n\n");
+		return;
+	} else {
+		printf("plancache.c: The statement has index!\n");
+	}
+	stmt->planTree = switch_tree_internal(stmt->planTree);
+
+	stmt->state = (stmt->state + 1) % 2;
 }
