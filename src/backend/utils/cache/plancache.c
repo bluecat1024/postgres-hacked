@@ -1018,6 +1018,8 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 static bool
 choose_custom_plan(CachedPlanSource *plansource, ParamListInfo boundParams)
 {
+
+	return true;
 	double		avg_custom_cost;
 
 	/* One-shot plans will always be considered custom */
