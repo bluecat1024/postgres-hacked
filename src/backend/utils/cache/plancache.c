@@ -425,7 +425,7 @@ static int clause_matches_index(Node *clause, IndexOptInfo *info) {
 	return -1;
 }
 
-static Plan *create_index_trigger(Plan *node, List *params) {
+static Plan *create_index_trigger(Plan *node, List *params, PlannedStmt* stmt) {
 	if (nodeTag(node) != T_SeqScan) {
 		return node;
 	}
@@ -497,11 +497,13 @@ static Plan *create_index_trigger(Plan *node, List *params) {
 		// add seqscan to backup node.
 		indexPlanNode->scan.plan.backupNode = seqPlanNode;
 
+		stmt->has_index = true;
+
 		return indexPlanNode;
 	}
 }
 
-static Plan *create_index_sort_replacement(Plan *node, List *params) {
+static Plan *create_index_sort_replacement(Plan *node, List *params, PlannedStmt *stmt) {
 	if (node->type != T_Sort) {
 		return node;
 	}
@@ -607,6 +609,7 @@ static Plan *create_index_sort_replacement(Plan *node, List *params) {
 			NIL, NIL, NIL, increasing ? 0 : -1
 		);
 		newNode->backupNode = node;
+		stmt->has_index = true;
 		printf("plancache.c: sort+seq->index finishes\n");
 		return newNode;
 	}
@@ -624,21 +627,31 @@ static void recursive_delete(Plan* node) {
 	pfree(node);
 }
 
-static Plan *drop_index_trigger(Plan *node, List *params) {
+static Plan *drop_index_trigger(Plan *node, List *params, PlannedStmt *stmt) {
 	Oid indexoid = list_nth_cell(params, 0)->oid_value;
-	if (nodeTag(node) != T_IndexScan) {
+	if (nodeTag(node) != T_IndexScan
+		&& (node->backupNode == NULL || nodeTag(node->backupNode) != T_IndexScan)) {
 		return node;
+	}
+
+	Plan *savedNode = node;
+	Plan *anotherNode = node->backupNode;
+	if (nodeTag(node) != T_IndexScan) {
+		node = node->backupNode;
+		anotherNode = savedNode;
 	}
 
 	IndexScan *indexPlanNode = (IndexScan *)node;
 	if (indexPlanNode->indexid != indexoid) {
-		return node;
+		return savedNode;
 	}
 
-	if (node->backupNode != NULL) {
+	stmt->has_index = false;
+
+	if (anotherNode != NULL) {
 		printf("Drop index trigger: not null\n");
 		fflush(stdout);
-		Plan* originalNode = node->backupNode;
+		Plan* originalNode = anotherNode;
 		recursive_delete(node);
 		return originalNode;
 	} else {
@@ -2605,16 +2618,18 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					// Else: do creation
 
 					// TODO: For callback: Set plan.has_index if create a new plan
-					if (!plan->has_index) {
-						plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_sort_replacement, params, plan);
+					if (plan->has_index) {
+						continue;
 					}
-
-					if (!plan->has_index) {
-						plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params, plan);
-					}
+						
+					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_sort_replacement, params, plan);
+					plan->planTree = PreOrderPlantreeTraverse(plan->planTree, create_index_trigger, params, plan);
 					
 					// Check whether plan.has_index is set to true
 					// If yes, update state to 1. Switch running time and set main to 0. 
+					if (plan->has_index) {
+						// update state to 1. Switch running time and set main to 0. 
+					}
 				}
 
 				index_close(myindex, NoLock);
@@ -2634,16 +2649,19 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					params = lappend_oid(params, indexoid);
 
 					// If !has_index: continue
-					// Check state: if state == 0: switch()
-					// Call post order to delete:
-					//     For each node: Check if indexoid == deleted_indexoid:
-					//
+					if (!plan->has_index) {
+						continue;
+					}
 
-					// post
+					// postorder delete
 					plan->planTree = PostOrderPlantreeTraverse(plan->planTree, drop_index_trigger, params, plan);
 					// Set has_index to false
 					// If state == 1: switch running time
 					// Set backup running time to -1
+					if (!plan->has_index) {
+						// If state == 1: switch running time
+						// Set backup running time to -1
+					}
 				}
 			}
 		}
