@@ -149,7 +149,10 @@ make_indexonlyscan(List *qptlist,
 static List *fix_indexquals_local(IndexOptInfo *index,
 	List *quals, Oid tablerelid, List *matchColnos);
 
-static void switch_plan_tree(PlannedStmt* stmt);
+static void switch_running_time(CachedPlanSource *plansource);
+static double get_mean_cost(CachedPlanSource *plansource, bool isMain);
+static void set_running_cost(CachedPlanSource *plansource, bool isMain);
+static void switch_plan_tree(PlannedStmt* stmt, CachedPlanSource *plansource);
 
 static Node *
 fix_indexqual_operand_local(Node *node, IndexOptInfo *index, int indexcol, Index tablerelid)
@@ -1772,14 +1775,19 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 	{
 		if (CheckCachedPlan(plansource))
 		{
+			double main_cost = get_mean_cost(plansource, true);
+			double backup_cost = get_mean_cost(plansource, false);
 			/* We want a generic plan, and we already have a valid one */
-			// printf("Switch!\n");
-			// ListCell* lc;
-			// foreach (lc, plansource->gplan->stmt_list) {
-			// 	PlannedStmt* stmt = lfirst_node(PlannedStmt, lc);
-			// 	switch_plan_tree(stmt);
-			// }
-			
+
+			if (backup_cost != (double)-1 && main_cost > backup_cost) {
+				printf("Switch!\n");
+				ListCell* lc;
+				foreach (lc, plansource->gplan->stmt_list) {
+					PlannedStmt* stmt = lfirst_node(PlannedStmt, lc);
+					switch_plan_tree(stmt, plansource);
+				}
+			}
+
 			plan = plansource->gplan;
 			Assert(plan->magic == CACHEDPLAN_MAGIC);
 		}
@@ -2645,7 +2653,8 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					if (plan->has_index) {
 						// TODO: update state to 1. Switch running time and set main to 0. 
 						plan->state = 1;
-
+						switch_running_time(plansource);
+						set_running_cost(plansource, true);
 					}
 				}
 
@@ -2671,7 +2680,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 					}
 
 					if (plan->state == 0) {
-						switch_plan_tree(plan);
+						switch_plan_tree(plan, plansource);
 					}
 
 					// postorder delete
@@ -2683,6 +2692,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 						// If state == 1: switch running time
 						// TODO: Set backup running time to -1
 						plan->state = 0;
+						set_running_cost(plansource, false);
 					}
 				}
 			}
@@ -3071,7 +3081,45 @@ static Plan* switch_tree_internal(Plan* plan) {
 	return plan;
 }
 
-static void switch_plan_tree(PlannedStmt* stmt) {
+static void switch_running_time(CachedPlanSource *plansource) {
+	double tmp_cost = plansource->total_main_cost;
+	plansource->total_main_cost = plansource->total_backup_cost;
+	plansource->total_backup_cost = tmp_cost;
+
+	int64 tmp_num = plansource->num_main_execution;
+	plansource->num_backup_execution;
+	plansource->num_main_execution = tmp_num;
+}
+
+static double get_mean_cost(CachedPlanSource *plansource, bool isMain) {
+	double result = 0.0;
+
+	if (!isMain && plansource->num_backup_execution == 0) {
+		return (double)-1;
+	}
+
+	if (isMain) {
+		if (plansource->num_main_execution != 0) {
+			result = plansource->total_main_cost / (double)plansource->num_main_execution;
+		}
+	} else {
+		result = plansource->total_backup_cost / (double)plansource->num_backup_execution;
+	}
+
+	return result;
+}
+
+static void set_running_cost(CachedPlanSource *plansource, bool isMain) {
+	if (isMain) {
+		plansource->total_main_cost = 0.0;
+		plansource->num_main_execution = 0;
+	} else {
+		plansource->total_backup_cost = 0.0;
+		plansource->num_backup_execution = 0;
+	}
+}
+
+static void switch_plan_tree(PlannedStmt* stmt, CachedPlanSource *plansource) {
 	// switch():
 	//   pre-traversal. Swap (two assignments) current node and backup node if backup node is not NULL
 	//   switch running mean
@@ -3082,6 +3130,9 @@ static void switch_plan_tree(PlannedStmt* stmt) {
 	} else {
 		printf("plancache.c: The statement has index!\n");
 	}
+	
+	switch_running_time(plansource);
+
 	stmt->planTree = switch_tree_internal(stmt->planTree);
 
 	stmt->state = (stmt->state + 1) % 2;

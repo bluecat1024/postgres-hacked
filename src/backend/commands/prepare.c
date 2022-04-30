@@ -317,8 +317,12 @@ ExecuteQuery(ParseState *pstate,
 	 * Run the portal as appropriate.
 	 */
 	PortalStart(portal, paramLI, eflags, GetActiveSnapshot());
-
+	TimestampTz start_time = GetCurrentTimestamp();
 	(void) PortalRun(portal, count, false, true, dest, dest, qc);
+	TimestampTz end_time = GetCurrentTimestamp();
+
+	entry->plansource->num_main_execution++;
+	entry->plansource->total_main_cost += (end_time - start_time);
 
 	PortalDrop(portal, false);
 
