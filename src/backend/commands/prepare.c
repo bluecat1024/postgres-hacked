@@ -36,9 +36,6 @@
 #include "utils/builtins.h"
 #include "utils/snapmgr.h"
 #include "utils/timestamp.h"
-#include "catalog/pg_class.h"
-#include "utils/rel.h"
-#include "access/table.h"
 
 
 /*
@@ -61,8 +58,7 @@ static Datum build_regtype_array(Oid *param_types, int num_params);
 void
 PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 			 int stmt_location, int stmt_len)
-{	
-	// printf("prepare.c: PrepareQuery() begin\n");
+{
 	RawStmt    *rawstmt;
 	CachedPlanSource *plansource;
 	Oid		   *argtypes = NULL;
@@ -96,9 +92,9 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 	plansource = CreateCachedPlan(rawstmt, pstate->p_sourcetext,
 								  CreateCommandTag(stmt->query));
 	MemoryContext old = MemoryContextSwitchTo(plansource->context);
+	plansource->stmt_name = palloc0(strlen(stmt->name) + 1);
 	strncpy(plansource->stmt_name, stmt->name, sizeof(stmt->name));
 	MemoryContextSwitchTo(old);
-
 	/* Transform list of TypeNames to array of type OIDs */
 	nargs = list_length(stmt->argtypes);
 
@@ -178,7 +174,6 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 	StorePreparedStatement(stmt->name,
 						   plansource,
 						   true);
-	// printf("prepare.c: PrepareQuery() ends\n");
 }
 
 /*
@@ -195,7 +190,6 @@ ExecuteQuery(ParseState *pstate,
 			 ParamListInfo params,
 			 DestReceiver *dest, QueryCompletion *qc)
 {
-	// printf("prepare.c: ExecuteQuery() begin\n");
 	PreparedStatement *entry;
 	CachedPlan *cplan;
 	List	   *plan_list;
@@ -237,28 +231,6 @@ ExecuteQuery(ParseState *pstate,
 									   entry->plansource->query_string);
 
 	/* Replan if needed, and increment plan refcount for portal */
-	// printf("prepare.c: Execute query, cachedPlanSource\n");
-	// ListCell* l = NULL;
-	// foreach(l, entry->plansource->relationOids) {
-	// 	Oid relOid = lfirst_oid(l);
-	// 	printf("Relation OID: %d\n", (int)relOid);
-	// 	Relation relation = table_open(relOid, NoLock);
-		
-	// 	if (relation->rd_rel->relhasindex) {
-	// 		printf("Has index!\n");
-	// 		List* indexoidlist = RelationGetIndexList(relation);
-	// 		ListCell* l2;
-	// 		if (indexoidlist != NIL) {
-	// 			foreach(l2, indexoidlist) {
-	// 				Oid relOid2 = lfirst_oid(l2);
-	// 				printf("Index OID: %d\n", (int)relOid2);
-	// 			}
-	// 		}
-	// 	}
-	// 	table_close(relation, NoLock);
-
-
-	// }
 	cplan = GetCachedPlan(entry->plansource, paramLI, NULL, NULL);
 	plan_list = cplan->stmt_list;
 
@@ -320,22 +292,16 @@ ExecuteQuery(ParseState *pstate,
 	 * Run the portal as appropriate.
 	 */
 	PortalStart(portal, paramLI, eflags, GetActiveSnapshot());
-	TimestampTz start_time = GetCurrentTimestamp();
+	TimestampTz start = GetCurrentTimestamp();
 	(void) PortalRun(portal, count, false, true, dest, dest, qc);
-	TimestampTz end_time = GetCurrentTimestamp();
-
-	
-	entry->plansource->num_main_execution++;
-	entry->plansource->total_main_cost += (end_time - start_time);
-	// printf("prepare.c: Time added. Now the num of execution is: %ld, the total cost is: %f\n", entry->plansource->num_main_execution, entry->plansource->total_main_cost);
-	printf("%s:Execution:%ld:%ld\n", stmt->name, (end_time - start_time), start_time);
+	TimestampTz end = GetCurrentTimestamp();
+	printf("%s:Execution:%ld:%ld\n", stmt->name, (end - start), start);
 	PortalDrop(portal, false);
 
 	if (estate)
 		FreeExecutorState(estate);
 
 	/* No need to pfree other memory, MemoryContext will be reset */
-	// printf("prepare.c: ExecuteQuery() end\n");
 }
 
 /*
@@ -354,7 +320,6 @@ static ParamListInfo
 EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 			   EState *estate)
 {
-	// printf("prepare.c: EvaluateParams() begin\n");
 	Oid		   *param_types = pstmt->plansource->param_types;
 	int			num_params = pstmt->plansource->num_params;
 	int			nparams = list_length(params);
@@ -434,7 +399,7 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 
 		i++;
 	}
-	// printf("prepare.c: EvaluateParams() end\n");
+
 	return paramLI;
 }
 
@@ -445,7 +410,6 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 static void
 InitQueryHashTable(void)
 {
-	// printf("prepare.c: InitQueryHashTable() begin\n");
 	HASHCTL		hash_ctl;
 
 	hash_ctl.keysize = NAMEDATALEN;
@@ -455,7 +419,6 @@ InitQueryHashTable(void)
 								   32,
 								   &hash_ctl,
 								   HASH_ELEM | HASH_STRINGS);
-	// printf("prepare.c: InitQueryHashTable() end\n");
 }
 
 /*
@@ -469,7 +432,6 @@ StorePreparedStatement(const char *stmt_name,
 					   CachedPlanSource *plansource,
 					   bool from_sql)
 {
-	// printf("prepare.c: StorePreparedStatement() begin\n");
 	PreparedStatement *entry;
 	TimestampTz cur_ts = GetCurrentStatementStartTimestamp();
 	bool		found;
@@ -498,7 +460,6 @@ StorePreparedStatement(const char *stmt_name,
 
 	/* Now it's safe to move the CachedPlanSource to permanent memory */
 	SaveCachedPlan(plansource);
-	// printf("prepare.c: StorePreparedStatement() end\n");
 }
 
 /*
@@ -596,7 +557,6 @@ DeallocateQuery(DeallocateStmt *stmt)
 void
 DropPreparedStatement(const char *stmt_name, bool showError)
 {
-	// printf("prepare.c: DropPreparedStatement() begin\n");
 	PreparedStatement *entry;
 
 	/* Find the query's hash table entry; raise error if wanted */
@@ -651,7 +611,6 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 					const char *queryString, ParamListInfo params,
 					QueryEnvironment *queryEnv)
 {
-	// printf("prepare.c: ExplainExecuteQuery() begin\n");
 	PreparedStatement *entry;
 	const char *query_string;
 	CachedPlan *cplan;
@@ -736,7 +695,6 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 		FreeExecutorState(estate);
 
 	ReleaseCachedPlan(cplan, CurrentResourceOwner);
-	// printf("prepare.c: ExplainExecuteQuery() end\n");
 }
 
 /*
