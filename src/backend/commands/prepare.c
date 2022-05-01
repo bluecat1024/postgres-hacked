@@ -93,7 +93,7 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 								  CreateCommandTag(stmt->query));
 	MemoryContext old = MemoryContextSwitchTo(plansource->context);
 	plansource->stmt_name = palloc(strlen(stmt->name) + 1);
-	strncpy(plansource->stmt_name, stmt->name, strlen(stmt->name));
+	strncpy(plansource->stmt_name, stmt->name, sizeof(stmt->name));
 	MemoryContextSwitchTo(old);
 	/* Transform list of TypeNames to array of type OIDs */
 	nargs = list_length(stmt->argtypes);
