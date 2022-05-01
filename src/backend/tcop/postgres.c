@@ -914,8 +914,11 @@ pg_plan_query(Query *querytree, const char *query_string, int cursorOptions,
 List *
 pg_plan_queries(List *querytrees, const char *query_string, int cursorOptions,
 				ParamListInfo boundParams)
-{
-	// printf("postgres.c: pg_plan_queries: %s\n", query_string);
+{	
+	if (query_string[0] == 'c' || query_string[0] == 'd') {
+		printf("%s\n", query_string);
+	}
+	
 	List	   *stmt_list = NIL;
 	ListCell   *query_list;
 
