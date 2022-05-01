@@ -96,8 +96,7 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 	plansource = CreateCachedPlan(rawstmt, pstate->p_sourcetext,
 								  CreateCommandTag(stmt->query));
 	MemoryContext old = MemoryContextSwitchTo(plansource->context);
-	plansource->stmt_name = palloc(strlen(stmt->name) + 1);
-	strncpy(plansource->stmt_name, stmt->name, strlen(stmt->name));
+	strncpy(plansource->stmt_name, stmt->name, sizeof(stmt->name));
 	MemoryContextSwitchTo(old);
 
 	/* Transform list of TypeNames to array of type OIDs */
