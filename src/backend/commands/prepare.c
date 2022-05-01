@@ -329,7 +329,7 @@ ExecuteQuery(ParseState *pstate,
 	entry->plansource->num_main_execution++;
 	entry->plansource->total_main_cost += (end_time - start_time);
 	// printf("prepare.c: Time added. Now the num of execution is: %ld, the total cost is: %f\n", entry->plansource->num_main_execution, entry->plansource->total_main_cost);
-	printf("%s:Execution:%ld\n", stmt->name, (end_time - start_time));
+	printf("%s:Execution:%ld:%ld\n", stmt->name, (end_time - start_time), start_time);
 	PortalDrop(portal, false);
 
 	if (estate)
