@@ -137,6 +137,8 @@ typedef struct CachedPlanSource
 	double		total_backup_cost;
 	int64		num_main_execution;
 	int64		num_backup_execution;
+
+	char*		stmt_name;
 } CachedPlanSource;
 
 /*
