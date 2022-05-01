@@ -2573,6 +2573,12 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 	AdaptiveIndexMsg *msg = (AdaptiveIndexMsg *)arg;
 	// printf("plancache.c: PlanCacheRelCallback() begin, index op %d %d\n", (int)msg->indexop, (int)msg->indexoid);
 	dlist_iter	iter;
+	IndexOptInfo *info = NULL;
+	RelOptInfo *relinfo = NULL;
+	Relation myindex = NULL;
+	Oid indexoid = msg->indexoid;
+	int8 indexop = msg->indexop;
+
 
 	dlist_foreach(iter, &saved_plan_list)
 	{
@@ -2584,15 +2590,12 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 
 		if (plansource->gplan && plansource->gplan->is_valid && list_member_oid(plansource->relationOids, relid)) {
 			TimestampTz begin = GetCurrentTimestamp();
-			bool changeHappen = false;
-			MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
-			Oid indexoid = msg->indexoid;
+			// initialize indexoptinfo if first time.
+			if (indexop == INVAL_ARGV_INDEX_CREATE && info == NULL) {
+				myindex = index_open(indexoid, NoLock);
 
-			if (msg->indexop == INVAL_ARGV_INDEX_CREATE) {
-				Relation myindex = index_open(indexoid, NoLock);
-
-				IndexOptInfo *info = makeNode(IndexOptInfo);
-				RelOptInfo *relinfo = makeNode(RelOptInfo);
+				info = makeNode(IndexOptInfo);
+				relinfo = makeNode(RelOptInfo);
 
 				info->indexoid = indexoid;
 				info->rel = relinfo;
@@ -2621,6 +2624,12 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				info->indexprs = RelationGetIndexExpressions(myindex);
 				if (info->indexprs && relid != 1)
 					ChangeVarNodes((Node *) info->indexprs, 1, relid, 0);
+			}
+
+			bool changeHappen = false;
+			MemoryContext oldCxt = MemoryContextSwitchTo(plansource->context);
+
+			if (indexop == INVAL_ARGV_INDEX_CREATE) {
 				// printf("plancache.c: Got index expressions\n");
 
 				foreach(lc, plansource->gplan->stmt_list) {
@@ -2658,15 +2667,7 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 						changeHappen = true;
 					}
 				}
-
-				index_close(myindex, NoLock);
-				pfree(relinfo);
-				pfree(info->indexkeys);
-				pfree(info->indexcollations);
-				pfree(info->opfamily);
-				pfree(info);
-				MemoryContextSwitchTo(oldCxt);
-			} else if (msg->indexop == INVAL_ARGV_INDEX_DROP) {
+			} else if (indexop == INVAL_ARGV_INDEX_DROP) {
 				foreach(lc, plansource->gplan->stmt_list) {
 					PlannedStmt *plan = lfirst_node(PlannedStmt, lc);
 					if (!list_member_oid(plan->relationOids, relid)) {
@@ -2703,10 +2704,11 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				printf("%s:Substitution:%ld:%ld\n", plansource->stmt_name, (end - begin), begin);
 			}
 
+			MemoryContextSwitchTo(oldCxt);
 		}
 
 		/* Do not need to further invalidate if is adaptive to index. */
-		if (msg->indexop != INVAL_ARGV_INDEX_NOOP)
+		if (indexop != INVAL_ARGV_INDEX_NOOP)
 			continue;
 
 		/* No work if it's already invalidated */
@@ -2754,6 +2756,15 @@ PlanCacheRelCallback(Datum arg, Oid relid)
 				}
 			}
 		}
+	}
+
+	if (info != NULL) {
+		index_close(myindex, NoLock);
+		pfree(relinfo);
+		pfree(info->indexkeys);
+		pfree(info->indexcollations);
+		pfree(info->opfamily);
+		pfree(info);
 	}
 
 	/* Likewise check cached expressions */
