@@ -1008,7 +1008,7 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 
 	MemoryContextSwitchTo(oldcxt);
 	TimestampTz end = GetCurrentTimestamp();
-	printf("Build plan time: %ld micro seconds\n", end - start);
+	printf("%s:Build:%ld:%ld\n", plansource->stmt_name, end - start, start);
 	return plan;
 }
 

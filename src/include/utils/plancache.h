@@ -132,6 +132,7 @@ typedef struct CachedPlanSource
 	double		total_custom_cost;	/* total cost of custom plans so far */
 	int64		num_custom_plans;	/* # of custom plans included in total */
 	int64		num_generic_plans;	/* # of generic plans */
+	char* stmt_name;
 } CachedPlanSource;
 
 /*
