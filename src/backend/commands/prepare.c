@@ -92,7 +92,7 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 	plansource = CreateCachedPlan(rawstmt, pstate->p_sourcetext,
 								  CreateCommandTag(stmt->query));
 	MemoryContext old = MemoryContextSwitchTo(plansource->context);
-	plansource->stmt_name = palloc(strlen(stmt->name) + 1);
+	plansource->stmt_name = palloc0(strlen(stmt->name) + 1);
 	strncpy(plansource->stmt_name, stmt->name, sizeof(stmt->name));
 	plansource->stmt_name[strlen(stmt->name)] = '\0';
 	MemoryContextSwitchTo(old);
