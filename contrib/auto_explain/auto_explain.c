@@ -15,6 +15,7 @@
 #include <limits.h>
 
 #include "access/parallel.h"
+#include "access/xact.h"
 #include "commands/explain.h"
 #include "executor/instrument.h"
 #include "jit/jit.h"
@@ -403,6 +404,7 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
 
 			ExplainBeginOutput(es);
 			ExplainQueryText(es, queryDesc);
+			ExplainPropertyInteger("start_time", NULL, GetCurrentStatementStartTimestamp(), es);
 			ExplainPrintPlan(es, queryDesc);
 			if (es->analyze && auto_explain_log_triggers)
 				ExplainPrintTriggers(es, queryDesc);
